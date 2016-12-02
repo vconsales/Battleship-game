@@ -47,6 +47,7 @@ int accept_serverTCP( ServerTCP *serv, ConnectionTCP *conn );
  */
 int recv_data( int sockt, char* buf, uint32_t buf_len );
 
+/*l'ultimo parametro dice quanti byte inviare*/
 int send_data( int sockt, char* buf, uint32_t buf_len );
 /*int recv_command();*/
 int close_connection( ConnectionTCP *conn );
