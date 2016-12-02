@@ -31,20 +31,7 @@ void register_to_serv( int sd )
 		sprintf(buf, "MY NAME IS %s",my_name);
 	
 		len = strlen(buf)+1;
-		/*no_len = htonl(len);
-		#ifdef DEBUG
-		printf("mando: %s %d\n",buf,len);
-		#endif
 
-		ret = 0;
-
-		ret = send( sd, (void*)&no_len, dim_len, 0 ); //invio dimensione del buffer
-		ret = send( sd, (void*)buf, len, 0 );	//invio buffer
-		printf("DEBUG: nome inviato. lunghezza %d\n",ret);*/
-
-
-		//QUI C'E' UN PROBLEMA!!!!!
-		
 		printf("mando la stringa %s di lunghezza %d\n",buf,len);
 		ret = send_data( sd, buf, len );
 		ret = recv_data(sd, buf, 18); //da cambiare
