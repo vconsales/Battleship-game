@@ -1,14 +1,5 @@
 #include "TCP.h"
 
-typedef enum { UNSET, NAME_SET, PEER_FREE, PEER_PLAYING } peer_state;
-
-typedef struct Peer_t 
-{
-	ConnectionTCP conn;
-	char name[64];
-	uint16_t udp_port; /*porta(big endian) sulla quale il peer accetta connessioni da altri peer.*/
-	peer_state state;
-}Peer;
 
 
 /***Variabili globali***/
