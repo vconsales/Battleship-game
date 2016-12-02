@@ -57,7 +57,7 @@ int accept_serverTCP( ServerTCP *serv, ConnectionTCP *conn )
 	sd = accept(serv->socket, (struct sockaddr*)&conn->cl_addr, &len );
 	conn->socket = sd;
 	serv->peers_connected++;
-//	printf("nuovo peer connesso. nuova socket: %d \n",sd);
+	printf("nuovo peer connesso. nuova socket: %d \n",sd);
 
 	return sd;
 }
@@ -69,7 +69,7 @@ int recv_data( int sockt, char* buf, uint32_t buf_len )
 	
 
 //	printf("ricevo dim pacchetto su socket %d\n",sockt);
-	received = recv( sockt, (void*)&nbytes, len_nbytes, MSG_WAITALL );
+	received = recv( sockt, (void*)&nbytes, len_nbytes, 0 );
 
 	if( received < len_nbytes )
 	{
@@ -82,8 +82,8 @@ int recv_data( int sockt, char* buf, uint32_t buf_len )
 	nbytes = (nbytes < buf_len) ? nbytes : buf_len;
 	//printf("Byte da ricevere %d\n", nbytes);	
 
-	received = recv( sockt, buf, nbytes, MSG_WAITALL );
-//	printf("received:%d buf: %s\n",received,buf);
+	received = recv( sockt, buf, nbytes, 0 );
+	//printf("received:%d buf: %s\n",received,buf);
 	if( received != nbytes ){
 		//printf("pacchetto {buf} ha dim %d \n", received);
 		my_errno = LESS_BYTE_RECEIVED;

@@ -21,7 +21,7 @@ typedef struct ServerTCP_t
 {
 	int socket;
 	struct sockaddr_in my_addr;
-	uint16_t peers_connected;	
+	int peers_connected;	
 }ServerTCP;
 
 typedef struct ConnectionTCP_t

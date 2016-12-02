@@ -2,10 +2,28 @@
 #include "TCP.h"
 
 #define DIM_BUFF 1024
+#define DEBUG
 
 int my_id = -1;
 uint16_t my_udp_port;
 char my_name[64];
+int sock_serv_TCP;
+
+
+void show_cmd();
+void register_to_serv();
+void execute_cmd(char* str);
+void disconnect();
+
+void show_cmd()
+{
+	printf("\n");
+	printf("Sono disponibili i seguenti comandi:\n");
+	printf("\t!help --> mostra l'elenco dei comandi disponibili\n");
+	printf("\t!who --> mostra l'elenco dei client connessi al server\n");
+	printf("\t!connect username --> avvia una partita con l'utente username\n");
+	printf("\t!quit --> disconnette il client dal server\n");
+}
 
 void register_to_serv( int sd )
 {
@@ -55,6 +73,31 @@ void register_to_serv( int sd )
 	send_data( sd, buf, strlen(buf)+1 );
 }
 
+void execute_cmd(char* str)
+{
+	char less_str[10];
+	char higher_str[65];
+	
+	if( strcmp(str,"!help") == 0 )
+	{
+		show_cmd();
+	} else if ( strcmp(str, "!who") == 0 ) {
+		#ifdef DEBUG
+		printf("chiedo lista utenti connessi\n");
+		#endif
+	} else if ( strcmp(str, "!quit") == 0 ){
+		disconnect();
+	} else {
+		sscanf(str," %s %s",less_str, higher_str);
+		if( strcmp(less_str, "!connect") == 0 )
+		{
+			#ifdef DEBUG
+			printf("mi connetto a %s\n",higher_str);
+			#endif
+		}
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	int sd, ret;
@@ -81,6 +124,7 @@ int main(int argc, char* argv[])
 	serv_addr.sin_port = htons(serv_addr.sin_port); 
 
 	sd = socket(AF_INET, SOCK_STREAM, 0);
+	//sock_serv_TCP = sd;
 	if( sd == -1 )
 	{
 		printf("Errore socket non aperta \n");
@@ -97,8 +141,23 @@ int main(int argc, char* argv[])
 		printf("Connesso correttamente al server %s\n",argv[1]);
 
 	register_to_serv(sd);
-	
-	sleep(10);
+	show_cmd();
+
+	while(1){
+		printf(">");
+		scanf("%s",buf);
+		execute_cmd(buf);
+	}
+
 	close(sd);
 	return 0;
+}
+
+void disconnect()
+{
+	#ifdef DEBUG
+	printf("disconnessione\n");
+	#endif
+	close(sock_serv_TCP);
+	exit(0);
 }
