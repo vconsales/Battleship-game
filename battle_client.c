@@ -13,7 +13,8 @@ void register_to_serv( int sd )
 	uint32_t len, dim_len = sizeof(uint32_t);
 	uint32_t no_len; //lunghezza in formato network
 
-	int ret = recv( sd, buf, 30, MSG_WAITALL );
+	//int ret = recv( sd, buf, 30, MSG_WAITALL );
+	int ret = recv_data(sd, buf, 100);
 	sscanf(buf, "WELCOME YOUR ID IS %d", &my_id);
 	printf(">MY ID IS: %d \n",my_id);
 
@@ -41,9 +42,13 @@ void register_to_serv( int sd )
 		ret = send( sd, (void*)buf, len, 0 );	//invio buffer
 		printf("DEBUG: nome inviato. lunghezza %d\n",ret);*/
 
-		ret = send_data( sd, buf, len );
 
-		ret = recv( sd, (void*)buf, 18, MSG_WAITALL );
+		//QUI C'E' UN PROBLEMA!!!!!
+		
+		printf("mando la stringa %s di lunghezza %d\n",buf,len);
+		ret = send_data( sd, buf, len );
+		ret = recv_data(sd, buf, 18); //da cambiare
+		printf("ricevuto %s \n",buf);
 		/*NAME SET
 	     *NAME ALREADY USED
 	     */
@@ -102,10 +107,11 @@ int main(int argc, char* argv[])
 		close(sd);		
 		exit(1);
 	} else 
-		printf("Connesso correttamente al server %s",argv[1]);
+		printf("Connesso correttamente al server %s\n",argv[1]);
 
 	register_to_serv(sd);
 	
+	sleep(10);
 	close(sd);
 	return 0;
 }
