@@ -1,33 +1,23 @@
 #include "TCP.h"
-
+#include "peer_manager.h"
 
 
 /***Variabili globali***/
 ServerTCP* listener;
-Peer** peers;
-char position_free = 0;
-int last_pos = -1; //ultima posizione usata
-int max_peers = 50;
+extern des_peer** peers;
+extern int max_peers;
 const unsigned int DIM_BUF = 1024;
 /**********************/
 
 int analyze_message( int sockt, char* buf, size_t max_len );
 int send_welcome(int sockt, int id );
-int get_index_peer( int sockt );
-int add_peer();
-void alloc_peer( Peer** p );
-int remove_peer_having_sock( int sockt );
-
 
 int main( int argc, char* argv[] )
 {
 	int sd, i=0, j=0, ret=0;
 	uint16_t porta = 0;
 	char buf[DIM_BUF];
-//	size_t len;
 	int fdmax;
-	int* peers_connected;
-
 
 	fd_set master; /*set principale*/
 	fd_set read_fds; /*set di lettura*/
@@ -39,8 +29,8 @@ int main( int argc, char* argv[] )
 		exit(1);
 	}
 
-	size_t size_peer = sizeof(Peer*) * max_peers;
-	peers = (Peer**)malloc(size_peer);
+	size_t size_peer = sizeof(des_peer*) * max_peers;
+	peers = (des_peer**)malloc(size_peer);
 	memset( peers, 0, size_peer ); /*azzero tutti i puntatori*/
 
 	/*Ottengo porta*/
@@ -56,7 +46,7 @@ int main( int argc, char* argv[] )
 	FD_SET( listener->socket, &master ); 
 	fdmax = listener->socket;	
 
-	while( *peers_connected < max_peers )
+	while( listener->peers_connected < get_max_peers() )
 	{
 		read_fds = master;
 		select( fdmax+1, &read_fds, NULL, NULL, NULL);
@@ -68,7 +58,7 @@ int main( int argc, char* argv[] )
 			{
 				if( j == listener->socket ){
 					//ret = listen(listener->socket, 10);	 //forse non serve				
-					i = add_peer();
+					i = add_peer(listener->peers_connected);
 					if( i != -1 ){
 						sd = accept_serverTCP( listener, &peers[i]->conn );
 						send_welcome(sd, i);
@@ -108,7 +98,7 @@ int main( int argc, char* argv[] )
 
 int analyze_message( int sockt, char* buf, size_t max_len )
 {
-	Peer* p;
+	des_peer* p;
 	char i_buf[DIM_BUF];
 	int res = -1;
 	int index = get_index_peer(sockt);
@@ -167,92 +157,3 @@ int send_welcome( int sockt, int id )
 	return res;
 }
 
-int get_index_peer( int sockt )
-{
-	int i;
-	for( i=0; i<=last_pos; i++)
-	{
-		if( (peers[i] != NULL) && (peers[i]->conn.socket == sockt) )
-			return i;
-	}
-	return -1;
-}
-
-int add_peer()
-{
-	int i;
-	int n_peer = listener->peers_connected;
-	if( n_peer == max_peers )
-		return -1;
-
-	if( n_peer == 0 )
-	{
-		printf("--aggiungo peer in pos. 0\n");
-		peers[0] = (Peer*)malloc(sizeof(Peer));
-		peers[0]->state = UNSET; 
-		last_pos = 0;
-		//alloc_peer(&peers[0]);
-		return 0;
-	}
-
-	/*per evitare di scorrere inutilmente si puo' settare
-	  una variabile quando si rimuove un descrittore di peer.
-
-	  se quella variabile e' falsa si aggiunge alla fine.
-	  se quella variabile e' vera si fa il ciclo.
-
-	  quella variabile viene settata falsa se il ciclo viene
-	  eseguito e non si trova un campo vuoto.*/
-
-	if( position_free ) {
-		for(i=0; i<=last_pos; i++)
-		{
-			if( peers[i] == NULL )
-			{
-				printf("--aggiungo peer in pos. %d\n",i);
-				peers[i] = (Peer*)malloc(sizeof(Peer));
-				peers[i]->state = UNSET; 
-				//alloc_peer(&peers[i]);
-				return i;
-			}
-		}
-		position_free = 0;
-	}
-	last_pos++;
-
-	printf("--aggiungo peer in pos. %d\n",last_pos);
-	peers[last_pos] = (Peer*)malloc(sizeof(Peer));
-	peers[last_pos]->state = UNSET; 
-	//alloc_peer(&peers[i]);
-	return last_pos;
-}
-
-void alloc_peer( Peer** p )
-{
-	*p = (Peer*)malloc(sizeof(Peer));
-	(*p)->state = UNSET;
-}
-
-int remove_peer_having_sock( int sockt )
-{
-	int index = get_index_peer(sockt);
-	int res = -1;
-	//int i, last;
-
-	if( index != -1 ) 
-	{
-		printf("rimuovo il peer di indice %d\n",index);
-		free(peers[index]);
-		peers[index] = NULL;
-
-		position_free = 1; //si e' liberato un posto
-
-		/*se rimuovo l'ultimo elemento aggiorno la variabile*/
-		if( index == last_pos )
-			last_pos--;
-
-		return index;
-	}
-
-	return res;
-}
