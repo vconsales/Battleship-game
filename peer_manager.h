@@ -5,6 +5,13 @@
 
 typedef enum { UNSET, NAME_SET, PEER_FREE, PEER_PLAYING } peer_state;
 
+/***************Descrittore di peer.*******************
+ *Contiene informazioni che caratterizzano il client
+ *quali il suo indirizzo ip, la socket con la quale
+ *il server e' connesso ad esso, la porta udp su cui
+ *il client(o peer) ascolta gli altri peer e lo stato
+ *in cui esso si trova.
+ *****************************************************/
 typedef struct des_peer_t 
 {
 	ConnectionTCP conn;
@@ -13,7 +20,8 @@ typedef struct des_peer_t
 	peer_state state;
 }des_peer;
 
-extern des_peer** peers;
+/**attenzione all'esterno si puo' mettere in stato inconsistente**/
+extern des_peer** peers; 
 
 int get_index_peer( int sockt );
 int add_peer( int n_peers_connected );

@@ -76,6 +76,10 @@ int main( int argc, char* argv[] )
 						//printf("chiudo il socket %d \n",j);
 						FD_CLR(j,&master);
 						remove_peer_having_sock(j);
+						/*ridurre fdmax. test*/
+						if( j == fdmax)
+							fdmax--;
+
 						listener->peers_connected--;
 					}
 					else {
