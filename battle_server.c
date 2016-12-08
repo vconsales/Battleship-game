@@ -85,8 +85,7 @@ int main( int argc, char* argv[] )
 							fdmax--;
 
 						listener->peers_connected--;
-					}
-					else {
+					} else {
 						/*Il messaggio ricevuto viene analizzato secondo
 						 *il protocollo scelto. Se necessario vengono
 						 *aggiornate le strutture dati associate ai peer*/
@@ -195,7 +194,7 @@ int send_list_of_peer( int sockt )
 	if( n < 0)
 		return -1; 
 	
-	printf("dim=%d --%s\n",n,list);
+	//printf("dim=%d --%s\n",n,list);
 	
 	if( n > 0)
 		n = send_data(sockt, list, n);
@@ -208,7 +207,7 @@ int connect_request(int sender_id, char* opponent_name )
 	des_peer* p_sender = peers[sender_id];
 	int index = get_index_peer_name(opponent_name);
 	char buf[DIM_BUF];
-	req_conn_to_peer r;
+	req_conn_peer r;
 
 
 	if( index == -1 )
@@ -218,13 +217,13 @@ int connect_request(int sender_id, char* opponent_name )
 		return -1;
 	}
 
-	r.t = htonl(REQ_CONN_TO_PEER);
-	r.sender_id = sender_id;
-	strcpy(r.sender_name, p_sender->name);
+	r.t = htonl(REQ_CONN_FROM_PEER);
+	r.peer_id = sender_id;
+	strcpy(r.peer_name, p_sender->name);
 
 //	sprintf(buf,"REQ_CONNECTION_FROM %s",sender->name);
 //	send_data(peers[index]->conn.socket,buf,strlen(buf)+1);
-	send_data(peers[index]->conn.socket,(void*)&r,sizeof(r));
+	send_data(peers[index]->conn.socket,(char*)&r,sizeof(r));
 
 	return 0;
 }

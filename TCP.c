@@ -90,7 +90,7 @@ int recv_data( int sockt, char** buf )
 //	printf("Byte {prova} vale %ld buf_len vale %ld\n", prova,buf_len);	
 
 	received = recv( sockt, *buf, nbytes, 0 );
-	printf("received:%d buf: %s\n",received,*buf);
+	//printf("received:%d buf: %s\n",received,*buf);
 	if( received != nbytes ){
 		//printf("pacchetto {buf} ha dim %d \n", received);
 		my_errno = LESS_BYTE_RECEIVED;
@@ -110,7 +110,7 @@ int send_data( int sockt, char* buf, uint32_t buf_len )
 
 	if( bsend < 4 )
 	{
-		printf("pacchetto {nbytes} ha dim %ld \n", bsend);
+		printf("pacchetto {nbytes} ha dim %d \n", bsend);
 		return -1;
 	}
 
