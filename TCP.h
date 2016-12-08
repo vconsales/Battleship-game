@@ -30,7 +30,6 @@ typedef struct ConnectionTCP_t
 	struct sockaddr_in cl_addr; 
 }ConnectionTCP;
 
-
 int my_errno;
 
 /**Richiede numero di porta little endian**/
@@ -41,11 +40,13 @@ int close_serverTCP( ServerTCP **serv );
 /**restituisce id della socket che ha avuto la connessione*/
 int accept_serverTCP( ServerTCP *serv, ConnectionTCP *conn ); 
 
-/*riceve al massimo buf_len byte e li immette in buf.
- *la funzione negozia automaticamente il numero di byte
- *da scambiare.
- */
-int recv_data( int sockt, char* buf, uint32_t buf_len );
+/*
+* Riceve dati dalla socket indicata. La funzione negozia
+* il numero di byte da ricevere ed alloca un buffer in cui
+* depositare il messaggio. Il buffer verra' allocato nel
+* puntatore passato come parametro.
+*/
+int recv_data( int sockt, char** buf );
 
 /*l'ultimo parametro dice quanti byte inviare*/
 int send_data( int sockt, char* buf, uint32_t buf_len );

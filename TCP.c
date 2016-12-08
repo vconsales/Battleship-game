@@ -62,16 +62,23 @@ int accept_serverTCP( ServerTCP *serv, ConnectionTCP *conn )
 	return sd;
 }
 
-int recv_data( int sockt, char* buf, uint32_t buf_len )
+//gestire la conversione di formato
+int recv_data( int sockt, char** buf )
 {
-	uint32_t nbytes = 0, len_nbytes = sizeof(uint32_t);
-	int received = 0; 
-	
+	if( *buf != NULL )
+	{
+		free(*buf);
+		*buf = NULL;
+	}
+
+	uint32_t nbytes = 0;
+	uint32_t received = 0; 
 
 //	printf("ricevo dim pacchetto su socket %d\n",sockt);
-	received = recv( sockt, (void*)&nbytes, len_nbytes, 0 );
+	received = recv( sockt, (void*)&nbytes, 4, 0 );
+	//printf("pacchetto nbytes ha dim %ld e vale %ld\n",received,nbytes);
 
-	if( received < len_nbytes )
+	if( received < 4 )
 	{
 		//printf("pacchetto {nbytes} ha dim %d \n", received);
 		//my_errno = N_BYTE_NOT_DEFINED;
@@ -79,11 +86,11 @@ int recv_data( int sockt, char* buf, uint32_t buf_len )
 	}
 
 	nbytes = ntohl(nbytes);
-	nbytes = (nbytes < buf_len) ? nbytes : buf_len;
-	//printf("Byte da ricevere %d\n", nbytes);	
+	*buf = (char*)malloc(nbytes);	
+//	printf("Byte {prova} vale %ld buf_len vale %ld\n", prova,buf_len);	
 
-	received = recv( sockt, buf, nbytes, 0 );
-	//printf("received:%d buf: %s\n",received,buf);
+	received = recv( sockt, *buf, nbytes, 0 );
+	printf("received:%d buf: %s\n",received,*buf);
 	if( received != nbytes ){
 		//printf("pacchetto {buf} ha dim %d \n", received);
 		my_errno = LESS_BYTE_RECEIVED;
@@ -95,16 +102,20 @@ int recv_data( int sockt, char* buf, uint32_t buf_len )
 
 int send_data( int sockt, char* buf, uint32_t buf_len )
 {
-	uint32_t nbytes = htonl(buf_len), len_nbytes = sizeof(uint32_t);
-	int bsend = 0;
+	uint32_t nbytes = htonl(buf_len);
+	uint32_t bsend = 0;
 
-	bsend = send(sockt, (void*)&nbytes, len_nbytes, 0);
+	bsend = send(sockt, (void*)&nbytes, 4, 0);
+//	printf("pacchetto nbytes mandati %ld B e vale %ld",bsend,len_nbytes);
 
-	if( bsend < len_nbytes )
+	if( bsend < 4 )
 	{
-		printf("pacchetto {nbytes} ha dim %d \n", bsend);
+		printf("pacchetto {nbytes} ha dim %ld \n", bsend);
 		return -1;
 	}
+
+
+//	printf("dim=%d mess=%s\n",buf_len,buf);
 
 	bsend = send(sockt, (void*)buf, buf_len, 0);
 

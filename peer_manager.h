@@ -1,7 +1,8 @@
 #ifndef PEER_MANAGER_H
 #define PEER_MANAGER_H
-
 #include "TCP.h"
+
+#define NAME_LEN 64
 
 typedef enum { UNSET, NAME_SET, PEER_FREE, PEER_PLAYING } peer_state;
 
@@ -15,18 +16,24 @@ typedef enum { UNSET, NAME_SET, PEER_FREE, PEER_PLAYING } peer_state;
 typedef struct des_peer_t 
 {
 	ConnectionTCP conn;
-	char name[64];
+	char name[NAME_LEN];
 	uint16_t udp_port; /*porta(big endian) sulla quale il peer accetta connessioni da altri peer.*/
+	uint16_t opponent; /*id dell'avversario*/
 	peer_state state;
 }des_peer;
 
 /**attenzione all'esterno si puo' mettere in stato inconsistente**/
 extern des_peer** peers; 
 
-int get_index_peer( int sockt );
+int get_index_peer_name( char* name );
+int get_index_peer_sock( int sockt );
 int add_peer( int n_peers_connected );
 int remove_peer_having_sock( int sockt );
 int get_max_peers();
+/*Fornire come primo parametro una array di puntatori 
+* a carattere di dimensione n_peers.
+*/
+int get_peers_name( char** list, int n_peers );
 //int more_peers(); aumenta il numero di peer massimi
 
 #endif

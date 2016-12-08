@@ -12,12 +12,23 @@ des_peer** peers;
 /************************/
 
 
-int get_index_peer( int sockt )
+int get_index_peer_sock( int sockt )
 {
 	int i;
 	for( i=0; i<=last_pos; i++)
 	{
 		if( (peers[i] != NULL) && (peers[i]->conn.socket == sockt) )
+			return i;
+	}
+	return -1;
+}
+
+int get_index_peer_name( char* name )
+{
+	int i;
+	for( i=0; i<=last_pos; i++)
+	{
+		if( (peers[i] != NULL) && (strcmp(peers[i]->name,name)==0) )
 			return i;
 	}
 	return -1;
@@ -81,7 +92,7 @@ void alloc_peer( des_peer** p )
 
 int remove_peer_having_sock( int sockt )
 {
-	int index = get_index_peer(sockt);
+	int index = get_index_peer_sock(sockt);
 	int res = -1;
 	//int i, last;
 
@@ -106,4 +117,40 @@ int remove_peer_having_sock( int sockt )
 int get_max_peers()
 {
 	return max_peers;
+}
+
+int get_peers_name( char** list, int n_peers )
+{
+	int i;
+//	char pre[] = {"LIST OF PEERS: \n"};
+	char s_libero[] = {"(libero)\n"};
+	char s_occupato[] = {"(occupato)\n"};
+
+	//int n_pre = strlen(pre);
+	int n_state = strlen(s_occupato);
+
+	if( *list != NULL )
+		return -1;
+
+	/*Ogni stringa occupa: NAME_LEN byte (NAME_LEN-1) per il nome + stato + '\n'.
+	 *In totale = len_pre + spazio_singolo * n_peers + '\0'; */
+	*list = (char*)malloc( (sizeof(char)*NAME_LEN+n_state)*n_peers+1 );
+//	strcpy(*list, pre) ;
+
+	for( i=0; i<n_peers && i<=last_pos; i++) {
+		/*Dato che l'array puo' contenere buchi
+		 *controllo che l'elemento sia valido.
+		 *Inserisco solo i peer che sono registrati. */
+		if( peers[i] != NULL ) {
+			if( peers[i]->state == PEER_FREE ){
+				strcat(*list,peers[i]->name);
+				strcat(*list,s_libero);
+			} else if( peers[i]->state == PEER_PLAYING ) {
+				strcat(*list,peers[i]->name);
+				strcat(*list,s_occupato);
+			}
+		}
+	}
+
+	return strlen(*list)+1;
 }
