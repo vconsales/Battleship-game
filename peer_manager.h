@@ -18,7 +18,7 @@ typedef struct des_peer_t
 	ConnectionTCP conn;
 	char name[NAME_LEN];
 	uint16_t udp_port; /*porta(big endian) sulla quale il peer accetta connessioni da altri peer.*/
-	uint16_t opponent; /*id dell'avversario*/
+	uint16_t opponent_id; /*id dell'avversario*/
 	peer_state state;
 }des_peer;
 

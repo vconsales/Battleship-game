@@ -111,7 +111,11 @@ int analyze_message( int sockt, char* buf, size_t max_len )
 	char cmd[50];
 	char arg[100];
 	int res = -1;
+	int sender_id;
+	int receiver_id;
+
 	message_type m;
+	req_conn_peer re;
 
 	//printf("analizzo messaggio\n");
 	int index = get_index_peer_sock(sockt);
@@ -123,14 +127,16 @@ int analyze_message( int sockt, char* buf, size_t max_len )
 
 	p = peers[index];
 	//printf("Lo stato del peer %d e' %d\n",index,peers[index]->state);
-
+	memcpy(&m, buf, sizeof(m));
 	//gestire gli errori
+	//forse si possono togliere 
+	/*if( m == REQ_CONN_TO_PEER) 
+			printf("richiede connessione \n");*/
 	switch( p->state )
 	{
 		case UNSET:
 			//sscanf(buf, " MY NAME IS %s",p->name); 
-			memcpy(&m, buf, sizeof(m));
-			m = ntohl(m);
+			//m = ntohl(m);
 			if( m == PEER_SETS_NAME ){
 				strcpy(p->name, ((reg_set_name*)buf)->name);
 				printf("Si e' connesso %s\n",p->name);
@@ -156,10 +162,40 @@ int analyze_message( int sockt, char* buf, size_t max_len )
 				//printf("Richiesta lista di peer\n");
 				res = send_list_of_peer(p->conn.socket); 
 				//printf("la send_list_of_peer ha mandato %d\n",n);		
-			} else if ( strcmp(cmd,"CONNECT") == 0) {
+			/*} else if ( strcmp(cmd,"CONNECT") == 0) {
 				printf("%s richiede connessione a %s\n",p->name,arg);
 				connect_request(index,arg);
+				res = 4;*/
+			} else if( m == REQ_CONN_TO_PEER) {
+				printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
+				connect_request(index,((req_conn_peer*)buf)->peer_name);
 				res = 4;
+			} else if ( m == ACCEPT_CONN_FROM_PEER ) {
+				//des_peer* pe_se = peers[index];
+				sender_id = ((response_conn_to_peer*)buf)->sender_id;
+				receiver_id = ((response_conn_to_peer*)buf)->receiver_id;
+
+				re.t = CONN_TO_PEER_ACCEPTED;
+				re.peer_id = ((response_conn_to_peer*)buf)->receiver_id;
+				strcpy(re.peer_name,p->name);
+				re.peer_udp_port = p->udp_port;
+
+				p = peers[sender_id]; //invio la risposta al mittente
+				send_data(p->conn.socket,(char*)&re,sizeof(re));
+
+				peers[sender_id]->state = PEER_PLAYING;
+				peers[sender_id]->opponent_id = receiver_id;
+
+				peers[receiver_id]->state = PEER_PLAYING;
+				peers[sender_id]->state = PEER_PLAYING;
+				res = 5;
+			} else if ( m == REFUSE_CONN_FROM_PEER ) {
+				re.t = CONN_TO_PEER_REFUSED;
+				
+				sender_id = ((response_conn_to_peer*)buf)->sender_id; //indirizzo del mittente
+				p = peers[sender_id];
+				send_data(p->conn.socket,(char*)&re,sizeof(re));
+				res = 6;
 			} else {
 				res = -1;
 			}
@@ -206,18 +242,24 @@ int connect_request(int sender_id, char* opponent_name )
 {
 	des_peer* p_sender = peers[sender_id];
 	int index = get_index_peer_name(opponent_name);
-	char buf[DIM_BUF];
 	req_conn_peer r;
 
 
-	if( index == -1 )
-	{
-		strcpy(buf,"CLIENT DOES NOT EXISTS");
-		send_data(p_sender->conn.socket,buf,strlen(buf)+1);
+	if( index == -1 ) {
+		//strcpy(buf,"CLIENT DOES NOT EXISTS");
+		//send_data(p_sender->conn.socket,buf,strlen(buf)+1);
+		r.t = PEER_DOES_NOT_EXIST;
+		send_data(p_sender->conn.socket,(char*)&r,sizeof(r));
 		return -1;
 	}
 
-	r.t = htonl(REQ_CONN_FROM_PEER);
+	if( p_sender->state == PEER_PLAYING ) {
+		r.t = PEER_IS_NOT_FREE;
+		send_data(p_sender->conn.socket,(char*)&r,sizeof(r));
+		return -2;
+	}
+
+	r.t = REQ_CONN_FROM_PEER;
 	r.peer_id = sender_id;
 	strcpy(r.peer_name, p_sender->name);
 

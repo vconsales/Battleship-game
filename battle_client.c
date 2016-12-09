@@ -16,6 +16,7 @@ battle_game my_grind;
 
 char opposite_name[64];
 uint16_t opposite_udp_port;
+struct sockaddr_in opposite_addr;
 battle_game opposite_grind;
 /*************************************/
 
@@ -107,12 +108,20 @@ int main( int argc, char* argv[] )
 
 void help()
 {
-	printf("\n");
-	printf("Sono disponibili i seguenti comandi:\n");
-	printf("   !help --> mostra l'elenco dei comandi disponibili\n");
-	printf("   !who --> mostra l'elenco dei client connessi al server\n");
-	printf("   !connect username --> avvia una partita con l'utente username\n");
-	printf("   !quit --> disconnette il client dal server\n\n");
+	if( mode == '>' ){
+		printf("\n");
+		printf("Sono disponibili i seguenti comandi:\n");
+		printf("   !help --> mostra l'elenco dei comandi disponibili\n");
+		printf("   !who --> mostra l'elenco dei client connessi al server\n");
+		printf("   !connect username --> avvia una partita con l'utente username\n");
+		printf("   !quit --> disconnette il client dal server\n\n");
+	} else {
+		printf("Sono disponibili i seguenti comandi:\n");
+		printf("   !help --> mostra l'elenco dei comandi disponibili\n");
+		printf("   !shot riga colonna --> spara alle coordinate indicate\n");
+		printf("   !show --> mostra le griglie\n");
+		printf("   !quit --> disconnette il client dal server\n\n");
+	}
 }
 
 void register_to_serv( int sd )
@@ -121,7 +130,8 @@ void register_to_serv( int sd )
 	char* buf_rec = NULL;
 	
 	reg_set_name r = INIT_REG_SET_NAME;
-	
+	r.peer_id = my_id;
+
 	int ret = recv_data(sd, &buf_rec);
 	if( ret ) {
 		sscanf(buf_rec, "WELCOME YOUR ID IS %d", &my_id);
@@ -138,7 +148,7 @@ void register_to_serv( int sd )
 			printf("Il tuo nome e' troppo lungo e verra' troncato");
 		buf[63] = '\0';
 
-		r.t = htonl(PEER_SETS_NAME);
+		//r.t = htonl(PEER_SETS_NAME);
 		strcpy(r.name,buf);
 
 		ret = send_data( sd, (char*)&r, sizeof(r) );
@@ -168,11 +178,12 @@ void register_to_serv( int sd )
 	free(buf_rec);
 }
 
-void execute_cmd(char* str, int sockt)
+void execute_cmd( char* str, int sockt )
 {
 	char lower_str[10];
 	char higher_str[65];
 	char* buf = NULL;
+	req_conn_peer re;
 
 	printf("execute_cmd...\n");
 
@@ -195,9 +206,10 @@ void execute_cmd(char* str, int sockt)
 		#ifdef DEBUG
 		printf("mi connetto a %s\n",higher_str);
 		#endif
-		sprintf(str,"CONNECT %s",higher_str);			
-		send_data(sockt,str,strlen(str)+1);
-		//recv_data(sockt,&buf);
+		re.t = REQ_CONN_TO_PEER;
+		re.peer_id = my_id;
+		strcpy(re.peer_name,higher_str);
+		send_data(sockt,(char*)&re,sizeof(re));
 	}
 
 	if( buf )
@@ -213,7 +225,7 @@ void remote_req( int sockt, char* buf )
 
 	char c;
 	memcpy((void*)&m_type, (void*)buf, sizeof(m_type));
-	m_type = ntohl(m_type); //mettere una convert di libreria
+	m_type = m_type; //mettere una convert di libreria
 
 	if( m_type == REQ_CONN_FROM_PEER ){
 		/*printf("id:%d name:%s\n",
@@ -225,25 +237,42 @@ void remote_req( int sockt, char* buf )
 		//scanf("%c",&c);
 		if( c=='S' || c=='s' ) {
 			//printf("Accettato\n");
-			re.t = ACCEPT_CONN_PEER;
+			re.t = ACCEPT_CONN_FROM_PEER;
 		} else {
 			//printf("Rifiutato\n");
-			re.t = REFUSE_CONN_PEER;
+			re.t = REFUSE_CONN_FROM_PEER;
 		}
 		re.sender_id = ((req_conn_peer*)buf)->peer_id;
 		re.receiver_id = my_id;
-		convert_to_network_order(&re);
-		send_data(sockt,(char*)&re,sizeof(re));			
-	} else if ( m_type == REQ_CONN_ACCEPTED ) { 
-		//attenzione se il server e' fallato!
-		//questa richiesta non deve essere accettata
-		//se si sta gia facendo una partita
-		printf("altra richiesta\n");
-	} else if ( m_type == REFUSE_CONN_PEER ) { 
-		//attenzione se il server e' fallato!
-		//questa richiesta non deve essere accettata
-		//se si sta gia facendo una partita
-		printf("altra richiesta\n");
+		//convert_to_network_order(&re);
+		send_data(sockt,(char*)&re,sizeof(re));	
+		
+		if( c=='S' || c=='s')
+			switch_mode();		
+	} else if ( m_type == CONN_TO_PEER_ACCEPTED ) { 
+		/*il server invia erronamente un messaggio
+		 *di connessione accettata mentre si e' in
+		 *partita.*/
+		if( mode == '#') return;
+
+		/*Copio i dati dell'avversario presenti nel messaggio
+		 *nelle variabili globali*/
+		strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
+		opposite_udp_port = ((req_conn_peer*)buf)->peer_udp_port;
+		memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
+
+		printf("Richiesta di connessione accettata\n");
+		switch_mode();
+	} else if ( m_type == CONN_TO_PEER_REFUSED ) { 
+		/*il server invia erronamente un messaggio
+		 *di connessione accettata mentre si e' in
+		 *partita.*/
+		if( mode == '#') return;
+		printf("Richiesta di connessione rifiutata\n");
+	} else if ( m_type == PEER_IS_NOT_FREE ) {
+		printf("Il peer indicato e' gia' occupato in un'altra partita.\n");
+	} else if ( m_type == PEER_DOES_NOT_EXIST ) {
+		printf("Il peer indicato non esiste\n");
 	}
 }
 
