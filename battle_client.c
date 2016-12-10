@@ -11,13 +11,15 @@ uint16_t my_udp_port;
 char my_name[64];
 int sock_serv_TCP;
 const unsigned short DIM_BUFF = 512;
-char mode = '>';
+struct sockaddr_in my_addr;
 battle_game my_grind;
 
+int socket_udp;
 char opposite_name[64];
-uint16_t opposite_udp_port;
 struct sockaddr_in opposite_addr;
 battle_game opposite_grind;
+
+char mode = '>';
 /*************************************/
 
 void help();
@@ -76,17 +78,25 @@ int main( int argc, char* argv[] )
 	} else 
 		printf("Connesso correttamente al server %s\n",argv[1]);
 
+	socket_udp = socket(AF_INET,SOCK_DGRAM,0);
+	if( socket_udp == -1 ) {
+		printf("Errore socket udp non aperta.\n");
+		return -1;
+	}
+
 	register_to_serv(sd);
 	help();
 
 	FD_SET(STDIN_FILENO,&master);	//stdin
 	FD_SET(sd,&master);
+	FD_SET(socket_udp,&master);
 
+	int max = (socket_udp>sd) ? socket_udp : sd;
 	while(1) {
 		printf("%c",mode);	
 		fflush(stdout);	
 		read_fds = master;
-		select( sd+1, &read_fds, NULL, NULL, NULL);
+		select( max+1, &read_fds, NULL, NULL, NULL);
 
 		if( FD_ISSET(sd, &read_fds) )
 		{
@@ -95,6 +105,11 @@ int main( int argc, char* argv[] )
 			//printf("%s\n",buf_rec);
 			//printf("\b");
 			remote_req(sd, buf_rec);
+		} else if( FD_ISSET(socket_udp, &read_fds) ) {
+			printf("mess udp\n");
+			//recv_data(socket_udp,&buf_rec);
+			recv(socket_udp,buf,5,0);
+			printf("dati udp: %s\n",buf);
 		} else {
 			/*Cattura tutta la linea fino al carattere a capo*/
 			scanf(" %[^\n]s",buf);
@@ -168,9 +183,21 @@ void register_to_serv( int sd )
 		}
 	}
 
+_set_udp_port:
 	printf(">Inserisci la tua porta UDP: ");
 	scanf("%hu",&my_udp_port);
 	my_udp_port = htons(my_udp_port);
+
+	my_addr.sin_family = AF_INET;
+	my_addr.sin_addr.s_addr = INADDR_ANY;
+	my_addr.sin_port = my_udp_port;
+
+	ret = bind(socket_udp,(struct sockaddr*)&my_addr,sizeof(my_addr));
+	if( ret == -1 )
+	{
+		printf("Fallita bind. Cambia porta udp.\n");
+		goto _set_udp_port;
+	}
 
 	sprintf(buf, "MY PORT IS %hu",my_udp_port);
 	send_data( sd, buf, strlen(buf)+1 );
@@ -185,7 +212,7 @@ void execute_cmd( char* str, int sockt )
 	char* buf = NULL;
 	req_conn_peer re;
 
-	printf("execute_cmd...\n");
+	//printf("execute_cmd...\n");
 
 	if( strlen(str) > 74 )
 		return;
@@ -210,6 +237,8 @@ void execute_cmd( char* str, int sockt )
 		re.peer_id = my_id;
 		strcpy(re.peer_name,higher_str);
 		send_data(sockt,(char*)&re,sizeof(re));
+	} else if( strcmp(str,"!shot")==0 ){
+		send(socket_udp,str,strlen(str)+1,0);
 	}
 
 	if( buf )
@@ -222,7 +251,7 @@ void remote_req( int sockt, char* buf )
 {
 	message_type m_type = GENERIC_ERR;
 	response_conn_to_peer re;
-
+	int ret;
 	char c;
 	memcpy((void*)&m_type, (void*)buf, sizeof(m_type));
 	m_type = m_type; //mettere una convert di libreria
@@ -237,7 +266,12 @@ void remote_req( int sockt, char* buf )
 		//scanf("%c",&c);
 		if( c=='S' || c=='s' ) {
 			//printf("Accettato\n");
-			re.t = ACCEPT_CONN_FROM_PEER;
+			/*Copio i dati dell'avversario presenti nel messaggio
+		 	*nelle variabili globali*/
+			strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
+			memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
+
+			re.t = ACCEPT_CONN_FROM_PEER;		
 		} else {
 			//printf("Rifiutato\n");
 			re.t = REFUSE_CONN_FROM_PEER;
@@ -246,9 +280,11 @@ void remote_req( int sockt, char* buf )
 		re.receiver_id = my_id;
 		//convert_to_network_order(&re);
 		send_data(sockt,(char*)&re,sizeof(re));	
-		
-		if( c=='S' || c=='s')
-			switch_mode();		
+
+		if( c=='S' || c=='s'){
+			switch_mode();	
+			connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
+		}	
 	} else if ( m_type == CONN_TO_PEER_ACCEPTED ) { 
 		/*il server invia erronamente un messaggio
 		 *di connessione accettata mentre si e' in
@@ -258,10 +294,15 @@ void remote_req( int sockt, char* buf )
 		/*Copio i dati dell'avversario presenti nel messaggio
 		 *nelle variabili globali*/
 		strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
-		opposite_udp_port = ((req_conn_peer*)buf)->peer_udp_port;
 		memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
+		
+		#ifdef DEBUG
+		printf("avversario ip:%x udp_port:%d\n",htonl(opposite_addr.sin_addr.s_addr),ntohs(opposite_addr.sin_port));
+		#endif
+		//aggancio il socket udp all'avversario
+		ret = connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
 
-		printf("Richiesta di connessione accettata\n");
+		printf("Richiesta di connessione accettata %d\n",ret);
 		switch_mode();
 	} else if ( m_type == CONN_TO_PEER_REFUSED ) { 
 		/*il server invia erronamente un messaggio

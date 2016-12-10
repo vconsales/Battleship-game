@@ -176,11 +176,15 @@ int analyze_message( int sockt, char* buf, size_t max_len )
 				receiver_id = ((response_conn_to_peer*)buf)->receiver_id;
 
 				re.t = CONN_TO_PEER_ACCEPTED;
+				/*Ricopio i dati del ricevitore nel messaggio che verra'
+				  inviato al peer che aveva richiesto la connessione.*/
 				re.peer_id = ((response_conn_to_peer*)buf)->receiver_id;
-				strcpy(re.peer_name,p->name);
-				re.peer_udp_port = p->udp_port;
+				strcpy(re.peer_name,peers[receiver_id]->name);
+				//re.peer_udp_port = p->udp_port;
+				memcpy(&re.peer_addr,&(p->conn.cl_addr),sizeof(re.peer_addr));
+				re.peer_addr.sin_port = peers[receiver_id]->udp_port;
 
-				p = peers[sender_id]; //invio la risposta al mittente
+				p = peers[sender_id]; 
 				send_data(p->conn.socket,(char*)&re,sizeof(re));
 
 				peers[sender_id]->state = PEER_PLAYING;
@@ -262,6 +266,8 @@ int connect_request(int sender_id, char* opponent_name )
 	r.t = REQ_CONN_FROM_PEER;
 	r.peer_id = sender_id;
 	strcpy(r.peer_name, p_sender->name);
+	memcpy((void*)&r.peer_addr,(void*)&(p_sender->conn.cl_addr),sizeof(r.peer_addr));
+	r.peer_addr.sin_port = p_sender->udp_port;
 
 //	sprintf(buf,"REQ_CONNECTION_FROM %s",sender->name);
 //	send_data(peers[index]->conn.socket,buf,strlen(buf)+1);

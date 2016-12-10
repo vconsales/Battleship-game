@@ -106,7 +106,7 @@ int send_data( int sockt, char* buf, uint32_t buf_len )
 	uint32_t bsend = 0;
 
 	bsend = send(sockt, (void*)&nbytes, 4, 0);
-//	printf("pacchetto nbytes mandati %ld B e vale %ld",bsend,len_nbytes);
+	//printf("pacchetto nbytes mandati %ld B e vale %ld",bsend,len_nbytes);
 
 	if( bsend < 4 )
 	{
@@ -114,10 +114,8 @@ int send_data( int sockt, char* buf, uint32_t buf_len )
 		return -1;
 	}
 
-
-//	printf("dim=%d mess=%s\n",buf_len,buf);
-
 	bsend = send(sockt, (void*)buf, buf_len, 0);
+	printf("dim=%d mess=%s inviati=%d\n",buf_len,buf,bsend);
 
 	if( bsend < buf_len )
 		printf("pacchetto {buf} ha dim %d, inviati %d ",buf_len,bsend);

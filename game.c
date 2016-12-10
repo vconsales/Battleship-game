@@ -80,7 +80,7 @@ int init_game( battle_game *bg, int local, int sockt )
 	if( local )
 		bg->state |= b_LOCAL;
 
-	bg->sockt = sockt;
+	bg->sock_udp = sockt;
 
 	memset( bg->battle_grind, ' ', sizeof(char)*SIZE_GRIND*SIZE_GRIND);
 

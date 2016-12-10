@@ -80,7 +80,6 @@ typedef struct req_conn_peer_t
 	message_type t;
 	int peer_id;
 	char peer_name[65];
-	uint16_t peer_udp_port;
 	struct sockaddr_in peer_addr; 
 }__attribute__((packed)) req_conn_peer;
 
