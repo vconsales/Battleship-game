@@ -115,7 +115,7 @@ int send_data( int sockt, char* buf, uint32_t buf_len )
 	}
 
 	bsend = send(sockt, (void*)buf, buf_len, 0);
-	printf("dim=%d mess=%s inviati=%d\n",buf_len,buf,bsend);
+	//sprintf("dim=%d mess=%s inviati=%d\n",buf_len,buf,bsend);
 
 	if( bsend < buf_len )
 		printf("pacchetto {buf} ha dim %d, inviati %d ",buf_len,bsend);

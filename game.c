@@ -25,11 +25,13 @@ const char c_SHIP = 'X';
 
 uint8_t char_to_coord( char c );
 int normalize( coordinate *co );
-void set_ship_hit( battle_game *bg, uint8_t n);
-void set_ship_pos( battle_game *bg, uint8_t n);
+void set_n_ship_hit( battle_game *bg, uint8_t n);
+void set_n_ship_pos( battle_game *bg, uint8_t n);
 int shot_ship_local( coordinate *co, battle_game* bg );
 int shot_ship_remote( coordinate *co, battle_game *bg );
-
+void send_ship_arranged( int sock_udp );
+void send_ship_hit( int sock_udp, char col, char row );
+void send_ship_miss( int sock_udp, char col, char row );
 
 uint8_t is_local(battle_game *bg)
 {
@@ -49,25 +51,24 @@ void print_bitmap()
 void show_grind( battle_game *bg )
 {
 	short i, j;
-	char c = 'A';
 
 	if( is_local(bg) )
 		printf("GRIGLIA LOCALE\n");
 	else
 		printf("GRIGLIA REMOTA\n");
 
-	printf("   1 2 3 4 5 6 7 8 9\n");
-	printf("  +-----------------+\n");
-	for(i=0; i<9; i++){
+	printf("   A B C D E F \n");
+	printf("  +-----------+\n");
+	for(i=0; i<SIZE_GRIND; i++){
 		//printf("+-----------------+\n");
-		printf("%c ",c++);
-		for(j=0; j<9; j++){
+		printf("%d ", i+1);
+		for(j=0; j<SIZE_GRIND; j++){
 			printf("|%c",bg->battle_grind[i][j]);
 		}
 		printf("|\n");
 	}
 
-	printf("  +-----------------+\n");
+	printf("  +-----------+\n");
 }
 
 int init_game( battle_game *bg, int local, int sockt )
@@ -98,14 +99,17 @@ int init_remote_game( battle_game *bg, int sockt)
 
 int normalize( coordinate *co )
 {
-	co->x = (uint8_t) co->x - 'A';
-	co->y = (uint8_t) co->y - '0';
-	co->y--;
+	if( co->x >= 97)
+		co->x = (uint8_t)co->x - 'a';
+	else	
+		co->x = (uint8_t)co->x - 'A';
+	co->y = (uint8_t)co->y - '0' - 1;
+	
 	#ifdef DEBUG
 	printf("co->x %d co->y %d\n",co->x,co->y);
 	#endif
 
-	if( co->x<0 || co->y<0 || co->x>8 || co->y>8 )
+	if( co->x<0 || co->y<0 || co->x>=SIZE_GRIND || co->y>=SIZE_GRIND )
 		return -1;
 	else
 		return 0;
@@ -113,7 +117,7 @@ int normalize( coordinate *co )
 
 int set_ship( coordinate *c, battle_game *bg )
 {
-	int n_pos = n_ship_pos(bg);	
+	int n_pos = get_n_ship_pos(bg);	
 
 	if( !is_local(bg) )
 		return -3;
@@ -125,14 +129,19 @@ int set_ship( coordinate *c, battle_game *bg )
 	if( res == -1 )
 		return -1;
 
-	if( bg->battle_grind[c->x][c->y] == c_SHIP )
+	if( bg->battle_grind[c->y][c->x] == c_SHIP )
 		return -2;
 	
 	/*Imposto la nave nella posizione*/
-	bg->battle_grind[c->x][c->y] = c_SHIP;
+	bg->battle_grind[c->y][c->x] = c_SHIP;
 	/*Incremento il numero di navi*/
-//	bg->state++;
-	set_ship_pos(bg,++n_pos);
+	set_n_ship_pos(bg,++n_pos);
+
+	if( get_n_ship_pos(bg) == SHIP_NUMBER ) {
+		send_ship_arranged(bg->sock_udp);
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -146,7 +155,7 @@ int shot_ship( coordinate *c, battle_game *bg )
 
 int shot_ship_local( coordinate* c, battle_game *bg )
 {
-	uint8_t n_hit = n_ship_hit(bg);
+	uint8_t n_hit = get_n_ship_hit(bg);
 	int res = normalize(c); 
 	
 	/*Le coordinate passate non sono valide*/
@@ -154,10 +163,11 @@ int shot_ship_local( coordinate* c, battle_game *bg )
 		return -1;
 
 	/*Se nella casella selezionata c'è una nave...*/
-	if( bg->battle_grind[c->x][c->y] == c_SHIP ){
-		bg->battle_grind[c->x][c->y] = c_HIT; /*Nave colpita*/
-		set_ship_hit(bg, ++n_hit); /*Aggiorno n. navi colpite*/
-		
+	if( bg->battle_grind[c->y][c->x] == c_SHIP ){
+		bg->battle_grind[c->y][c->x] = c_HIT; /*Nave colpita*/
+		set_n_ship_hit(bg, ++n_hit); /*Aggiorno n. navi colpite*/
+		send_ship_hit(bg->sock_udp,c->x,c->y);
+
 		if( n_hit == SHIP_NUMBER)
 			return 2; /*Gioco terminato*/
 		else
@@ -165,8 +175,9 @@ int shot_ship_local( coordinate* c, battle_game *bg )
 	}
 
 	/*Se la casella è vuota...*/
-	if( bg->battle_grind[c->x][c->y] == c_EMPTY ){
-		bg->battle_grind[c->x][c->y] = c_MISS;
+	if( bg->battle_grind[c->y][c->x] == c_EMPTY ){
+		bg->battle_grind[c->y][c->x] = c_MISS;
+		send_ship_miss(bg->sock_udp,c->x,c->y);
 		return 0;
 	} else
 		return -2; /*Nave già colpita*/
@@ -174,11 +185,19 @@ int shot_ship_local( coordinate* c, battle_game *bg )
 
 int shot_ship_remote( coordinate *co, battle_game *bg )
 {
+	shot_mess sm;
+	sm.t = SHOT_SHIP;
+	sm.col = co->x;
+	sm.row = co->y;
+	#ifdef DEBUG
+	printf("col:%c row:%c\n",co->x,co->y);
+	#endif
+	send_data(bg->sock_udp,(char*)&sm,sizeof(sm));
 
 	return 0;
 }
 
-void set_ship_hit( battle_game *bg, uint8_t n )
+void set_n_ship_hit( battle_game *bg, uint8_t n )
 {
 	/*azzera le navi colpite*/
 	uint8_t mask = 0xFF ^ b_HIT; 
@@ -188,7 +207,7 @@ void set_ship_hit( battle_game *bg, uint8_t n )
 	bg->state |= (n << 3);
 }
 
-void set_ship_pos( battle_game *bg, uint8_t n ) 
+void set_n_ship_pos( battle_game *bg, uint8_t n ) 
 {
 	/*azzera le navi posizionate*/
 	uint8_t mask = 0xFF ^ b_POS; 
@@ -198,14 +217,55 @@ void set_ship_pos( battle_game *bg, uint8_t n )
 	bg->state |= n ;
 }
 
-uint8_t n_ship_hit( battle_game *bg )
+uint8_t get_n_ship_hit( battle_game *bg )
 {
 	uint8_t mask_hit = 7 << 3;
 	uint8_t res = bg->state & mask_hit;
 	return (res >> 3);
 }
 
-uint8_t n_ship_pos( battle_game *bg )
+uint8_t get_n_ship_pos( battle_game *bg )
 {
 	return bg->state & b_POS;
+}
+
+int set_hit( coordinate* co, battle_game* bg_r )
+{
+	if( co->x<0 || co->y<0 || co->x>=SIZE_GRIND || co->y>=SIZE_GRIND )
+		return -1;
+
+	int n_ship_hit = get_n_ship_hit(bg_r)+1;
+	set_n_ship_hit(bg_r,n_ship_hit);
+
+	bg_r->battle_grind[co->y][co->x] = c_HIT;
+	return 0;
+}
+
+int set_miss( coordinate* co, battle_game* bg_r )
+{
+	if( co->x<0 || co->y<0 || co->x>=SIZE_GRIND || co->y>=SIZE_GRIND )
+		return -1;
+
+	bg_r->battle_grind[co->y][co->x] = c_MISS;
+	return 0;
+}
+
+void send_ship_arranged( int sock_udp )
+{
+	message_type mt = SHIP_ARRANGED;
+	send_data(sock_udp,(void*)&mt,sizeof(mt));
+}
+
+void send_ship_hit( int sock_udp, char col, char row )
+{
+	shot_mess sm = INIT_SHIP_HIT(col,row);
+	printf("mando HIT %c %c",col,row);
+	send_data(sock_udp,(char*)&sm,sizeof(sm));
+}
+
+void send_ship_miss( int sock_udp, char col, char row )
+{
+	shot_mess sm = INIT_SHIP_MISS(col,row);
+	printf("mando MISS %c %c",col,row);
+	send_data(sock_udp,(char*)&sm,sizeof(sm));
 }

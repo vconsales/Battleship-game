@@ -6,10 +6,10 @@
 
 
 /***Variabili globali***/
+int sock_serv_TCP;
 int my_id = -1;
 uint16_t my_udp_port;
 char my_name[64];
-int sock_serv_TCP;
 const unsigned short DIM_BUFF = 512;
 struct sockaddr_in my_addr;
 battle_game my_grind;
@@ -18,14 +18,17 @@ int socket_udp;
 char opposite_name[64];
 struct sockaddr_in opposite_addr;
 battle_game opposite_grind;
+unsigned char opposite_ready = 0;
 
 char mode = '>';
+unsigned char arranging_ships = 0;
 /*************************************/
 
 void help();
 void register_to_serv( int sd );
 void execute_cmd(char* str, int sockt);
 void remote_req(int sockt, char* buf);
+void arrange_my_ship();
 void disconnect();
 void switch_mode();
 
@@ -87,6 +90,9 @@ int main( int argc, char* argv[] )
 	register_to_serv(sd);
 	help();
 
+	init_game( &my_grind, 1, socket_udp );
+	init_game( &opposite_grind, 0, socket_udp );
+
 	FD_SET(STDIN_FILENO,&master);	//stdin
 	FD_SET(sd,&master);
 	FD_SET(socket_udp,&master);
@@ -102,14 +108,11 @@ int main( int argc, char* argv[] )
 		{
 			printf("\b");
 			recv_data(sd,&buf_rec);
-			//printf("%s\n",buf_rec);
-			//printf("\b");
 			remote_req(sd, buf_rec);
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
 			printf("mess udp\n");
-			//recv_data(socket_udp,&buf_rec);
-			recv(socket_udp,buf,5,0);
-			printf("dati udp: %s\n",buf);
+			recv_data(socket_udp,&buf_rec);
+			remote_req(socket_udp, buf_rec);
 		} else {
 			/*Cattura tutta la linea fino al carattere a capo*/
 			scanf(" %[^\n]s",buf);
@@ -166,9 +169,10 @@ void register_to_serv( int sd )
 		//r.t = htonl(PEER_SETS_NAME);
 		strcpy(r.name,buf);
 
-		ret = send_data( sd, (char*)&r, sizeof(r) );
+		ret = send_data(sd, (char*)&r, sizeof(r));
 		ret = recv_data(sd, &buf_rec); 
 
+		/*si puo' togliere da qui forse*/
 		message_type m;
 		memcpy(&m, buf_rec, sizeof(m));
 
@@ -195,7 +199,7 @@ _set_udp_port:
 	ret = bind(socket_udp,(struct sockaddr*)&my_addr,sizeof(my_addr));
 	if( ret == -1 )
 	{
-		printf("Fallita bind. Cambia porta udp.\n");
+		printf("La porta udp scelta non e' disponibile.\n");
 		goto _set_udp_port;
 	}
 
@@ -207,29 +211,33 @@ _set_udp_port:
 
 void execute_cmd( char* str, int sockt )
 {
-	char lower_str[10];
+	char cmd[10];
 	char higher_str[65];
-	char* buf = NULL;
+	char* buf_rec = NULL;
 	req_conn_peer re;
+	char col;
+	char row;
 
 	//printf("execute_cmd...\n");
 
 	if( strlen(str) > 74 )
 		return;
 
-	sscanf(str," %s %s",lower_str, higher_str);
-	//printf("%s %s\n",lower_str,higher_str);
+	sscanf(str," %s %[^\n]s",cmd, higher_str);
+	//printf("%s %s\n",cmd,higher_str);
 
-	if( strcmp(str,"!help") == 0 ) {
+	if( strcmp(cmd,"!help") == 0 ) {
 		help();
-	} else if ( strcmp(str, "!who") == 0 ) {
+	} else if ( arranging_ships ) {
+		arrange_my_ship(str);
+	} else if ( strcmp(cmd, "!who") == 0 ) {
 		strcpy(higher_str,"LIST OF PEERS");
 		send_data(sockt,higher_str,strlen(higher_str)+1);
-		recv_data(sockt,&buf);
-		printf("Peer connessi al server:\n%s",buf);
+		recv_data(sockt,&buf_rec);
+		printf("Peer connessi al server:\n%s",buf_rec);
 	} else if ( strcmp(str, "!quit") == 0 ){
 		disconnect();
-	} else if( strcmp(lower_str, "!connect") == 0 ) {
+	} else if( strcmp(cmd, "!connect") == 0 ) {
 		#ifdef DEBUG
 		printf("mi connetto a %s\n",higher_str);
 		#endif
@@ -237,12 +245,21 @@ void execute_cmd( char* str, int sockt )
 		re.peer_id = my_id;
 		strcpy(re.peer_name,higher_str);
 		send_data(sockt,(char*)&re,sizeof(re));
-	} else if( strcmp(str,"!shot")==0 ){
-		send(socket_udp,str,strlen(str)+1,0);
+	} else if( strcmp(cmd,"!shot")==0 ) {
+		coordinate co;
+		if( !opposite_ready ){
+			printf("L'avversario non e' ancora pronto.\n");
+			return;
+		}
+		sscanf(higher_str," %c %c",&col,&row);
+		co.x = col;
+		co.y = row;
+
+		shot_ship( &co, &opposite_grind );
 	}
 
-	if( buf )
-		free(buf);
+	if( buf_rec )
+		free(buf_rec);
 	//printf("%c",mode);
 	//fflush(stdout);
 }
@@ -254,9 +271,14 @@ void remote_req( int sockt, char* buf )
 	int ret;
 	char c;
 	memcpy((void*)&m_type, (void*)buf, sizeof(m_type));
-	m_type = m_type; //mettere una convert di libreria
+//	m_type = m_type; //mettere una convert di libreria
 
 	if( m_type == REQ_CONN_FROM_PEER ){
+		/*il server invia erronamente un messaggio
+		 *di connessione accettata mentre si e' in
+		 *partita.*/
+		if( mode == '#') return;
+
 		/*printf("id:%d name:%s\n",
 			   ((req_conn_peer*)buf)->peer_id, 
 			   ((req_conn_peer*)buf)->peer_name );*/
@@ -284,6 +306,10 @@ void remote_req( int sockt, char* buf )
 		if( c=='S' || c=='s'){
 			switch_mode();	
 			connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
+			/*Il sistema inizia a sistemare la navi*/
+			arranging_ships = 1; 
+			printf("-------------------------------\n");
+			printf("--Posiziona le tue navi\n");
 		}	
 	} else if ( m_type == CONN_TO_PEER_ACCEPTED ) { 
 		/*il server invia erronamente un messaggio
@@ -304,6 +330,11 @@ void remote_req( int sockt, char* buf )
 
 		printf("Richiesta di connessione accettata %d\n",ret);
 		switch_mode();
+
+		/*Il sistema inizia a sistemare la navi*/
+		arranging_ships = 1; 
+		printf("-------------------------------\n");
+		printf("--Posiziona le tue navi\n");
 	} else if ( m_type == CONN_TO_PEER_REFUSED ) { 
 		/*il server invia erronamente un messaggio
 		 *di connessione accettata mentre si e' in
@@ -314,7 +345,32 @@ void remote_req( int sockt, char* buf )
 		printf("Il peer indicato e' gia' occupato in un'altra partita.\n");
 	} else if ( m_type == PEER_DOES_NOT_EXIST ) {
 		printf("Il peer indicato non esiste\n");
-	}
+	} else if ( m_type == SHOT_SHIP ) {
+		coordinate co;
+		co.x = ((shot_mess*)buf)->col;
+		co.y = ((shot_mess*)buf)->row;
+		shot_ship(&co,&my_grind);
+		show_grind(&my_grind);
+		show_grind(&opposite_grind);
+	} else if ( m_type == SHIP_ARRANGED ) {
+		printf("\b%s ha posizionato tutte le navi\n",opposite_name);
+		opposite_ready = 1;
+	} else if ( m_type == SHIP_HIT ) {
+		coordinate co;
+		co.x = ((shot_mess*)buf)->col;
+		co.y = ((shot_mess*)buf)->row;
+		set_hit(&co,&opposite_grind);
+		printf("colpito!\n");
+		show_grind(&opposite_grind);
+	} else if ( m_type == SHIP_MISS ) {
+		coordinate co;
+		co.x = ((shot_mess*)buf)->col;
+		co.y = ((shot_mess*)buf)->row;
+		set_miss(&co,&opposite_grind);
+		printf("buco nell'acqua.\n");
+		show_grind(&opposite_grind);
+	} else
+		printf("Messaggio non riconosciuto\n");
 }
 
 void disconnect()
@@ -329,4 +385,30 @@ void disconnect()
 void switch_mode(){
 	if( mode == '>' ) mode = '#';
 	else mode = '>';
+}
+
+void arrange_my_ship(char* str)
+{
+	coordinate co;
+	char col;
+	char row;
+	int res = 0;
+
+	sscanf(str," %c %c",&col,&row);
+	co.x = col;
+	co.y = row;
+	res = set_ship(&co,&my_grind);
+	if( res < 0 )
+		printf("Errore inserimento coordinate\n");
+	else if ( res == 1 ) {
+		arranging_ships = 0;
+		printf("Navi posizionate con successo.\n");
+	}
+	/*#ifdef DEBUG
+	printf("%c %c\n",col,row);
+	printf("debug=%d\n",x);
+	#endif */
+	show_grind(&my_grind);
+//	}
+//1	printf("--NAVI POSIZIONATE\n");
 }

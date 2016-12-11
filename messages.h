@@ -1,3 +1,6 @@
+#ifndef MESSAGES_H
+#define MESSAGES_H
+
 typedef enum { 
 	WELCOME_MESS,
 	PEER_SETS_NAME,
@@ -15,15 +18,28 @@ typedef enum {
 	REFUSE_CONN_FROM_PEER,
 	PEER_IS_NOT_FREE,
 	GENERIC_ERR,
+	SHIP_ARRANGED,
+	SHOT_SHIP,
+	SHIP_HIT,
+	SHIP_MISS,
 	DISCONNECT,
 } message_type;
 
 #define INIT_REG_SET_NAME { PEER_SETS_NAME, -1, {"\0"} }
 #define INIT_REG_SET_UDP_PORT { PEER_SETS_UDP_PORT, 0 }
 #define INIT_REQ_CONN_FROM_PEER { REQ_CONN_FROM_PEER, -1, '\0' }
+#define INIT_SHIP_HIT(col,row) { SHIP_HIT, (col), (row)};
+#define INIT_SHIP_MISS(col,row) { SHIP_MISS, (col), (row)};
 /*#define INIT_ACCEPT_CONN_TO_PEER { ACCEPT_CONN_PEER, -1, -1 }
 #define INIT_REFUSE_CONN_TO_PEER { REFUSE_CONN_PEER, -1, -1 }
 */
+
+/*
+typedef struct simple_mess_t
+{
+	message_type t;
+	int peer_id;
+}__attribute__((packed)) simple_mess;*/
 
 typedef struct reg_set_name_t
 {
@@ -109,8 +125,16 @@ typedef struct response_conn_to_peer_t
 * server indicando nei campi   
 *
 ********************************************/
+
+typedef struct shot_mess_t 
+{
+	message_type t;
+	char col;
+	char row;
+}__attribute__((packed)) shot_mess;
+
 /*gestire il network order*/
-void convert_to_network_order( void* msg )
+/*void convert_to_network_order( void* msg )
 {
 
 }
@@ -118,4 +142,6 @@ void convert_to_network_order( void* msg )
 void convert_to_host_order( void* msg )
 {
 
-}
+}**/
+
+#endif

@@ -2,9 +2,9 @@
 #define GAME_H
 
 #include "TCP.h"
+#include "messages.h"
 
-
-#define SIZE_GRIND 9
+#define SIZE_GRIND 6
 #define SHIP_NUMBER 7
 #define DEBUG
 /****
@@ -96,8 +96,8 @@ int set_hit( coordinate* c, battle_game* bg_r );
 
 uint8_t is_local( battle_game *bg );
 uint8_t is_remote( battle_game *bg );
-uint8_t n_ship_hit( battle_game *bg );
-uint8_t n_ship_pos( battle_game *bg );
+uint8_t get_n_ship_hit( battle_game *bg );
+uint8_t get_n_ship_pos( battle_game *bg );
 void print_bitmap(); /*debug*/
 
 #endif
