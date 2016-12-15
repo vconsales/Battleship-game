@@ -22,6 +22,8 @@ typedef enum {
 	SHOT_SHIP,
 	SHIP_HIT,
 	SHIP_MISS,
+	YOU_WON,
+	I_AM_FREE,
 	DISCONNECT,
 } message_type;
 
@@ -34,12 +36,12 @@ typedef enum {
 #define INIT_REFUSE_CONN_TO_PEER { REFUSE_CONN_PEER, -1, -1 }
 */
 
-/*
+
 typedef struct simple_mess_t
 {
 	message_type t;
 	int peer_id;
-}__attribute__((packed)) simple_mess;*/
+}__attribute__((packed)) simple_mess;
 
 typedef struct reg_set_name_t
 {

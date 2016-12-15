@@ -32,6 +32,7 @@ int shot_ship_remote( coordinate *co, battle_game *bg );
 void send_ship_arranged( int sock_udp );
 void send_ship_hit( int sock_udp, char col, char row );
 void send_ship_miss( int sock_udp, char col, char row );
+void send_you_won( int sock_udp );
 
 uint8_t is_local(battle_game *bg)
 {
@@ -48,27 +49,50 @@ void print_bitmap()
 	printf("%d %d %d \n",b_LOCAL, b_HIT, b_POS);
 }
 
-void show_grind( battle_game *bg )
+void show_grind( battle_game *bg_l, battle_game *bg_r )
 {
 	short i, j;
 
-	if( is_local(bg) )
+	/*if( is_local(bg) )
 		printf("GRIGLIA LOCALE\n");
 	else
-		printf("GRIGLIA REMOTA\n");
+		printf("GRIGLIA REMOTA\n");*/
 
-	printf("   A B C D E F \n");
-	printf("  +-----------+\n");
+	printf("   A B C D E F ");
+	if( bg_r )
+		printf("\t   A B C D E F \n");
+	else
+		printf("\n");
+
+	printf("  +-----------+");
+
+	if( bg_r ){
+		printf("\t  +-----------+\n");
+	} else
+		printf("\n");
+
 	for(i=0; i<SIZE_GRIND; i++){
 		//printf("+-----------------+\n");
 		printf("%d ", i+1);
 		for(j=0; j<SIZE_GRIND; j++){
-			printf("|%c",bg->battle_grind[i][j]);
+			printf("|%c",bg_l->battle_grind[i][j]);
+		}
+		if( bg_r ) {
+			printf("|\t  ");
+			fflush(stdout);
+			for(j=0; j<SIZE_GRIND; j++){
+				printf("|%c",bg_r->battle_grind[i][j]);
+			}
 		}
 		printf("|\n");
 	}
 
-	printf("  +-----------+\n");
+	printf("  +-----------+");
+	if( bg_r ) {
+		printf("\t  +-----------+\n");
+	}
+	else
+		printf("\n");
 }
 
 int init_game( battle_game *bg, int local, int sockt )
@@ -156,10 +180,10 @@ int shot_ship( coordinate *c, battle_game *bg )
 int shot_ship_local( coordinate* c, battle_game *bg )
 {
 	uint8_t n_hit = get_n_ship_hit(bg);
-	int res = normalize(c); 
+	int ret = normalize(c); 
 	
 	/*Le coordinate passate non sono valide*/
-	if( res == -1 )
+	if( ret == -1 )
 		return -1;
 
 	/*Se nella casella selezionata c'è una nave...*/
@@ -168,8 +192,10 @@ int shot_ship_local( coordinate* c, battle_game *bg )
 		set_n_ship_hit(bg, ++n_hit); /*Aggiorno n. navi colpite*/
 		send_ship_hit(bg->sock_udp,c->x,c->y);
 
-		if( n_hit == SHIP_NUMBER)
+		if( n_hit == SHIP_NUMBER){
+			send_you_won(bg->sock_udp);
 			return 2; /*Gioco terminato*/
+		}
 		else
 			return 1;
 	}
@@ -185,10 +211,22 @@ int shot_ship_local( coordinate* c, battle_game *bg )
 
 int shot_ship_remote( coordinate *co, battle_game *bg )
 {
+	int ret;
 	shot_mess sm;
 	sm.t = SHOT_SHIP;
 	sm.col = co->x;
 	sm.row = co->y;
+
+	ret = normalize(co);	
+	/*le coordinate passate non sono valide*/
+	if( ret == -1 )
+		return -1;
+
+	/*se il colpo in quella casella è stato già sparato
+	  non ha senso mandare di nuovo il pacchetto.*/
+	if( bg->battle_grind[co->y][co->x] != c_EMPTY )
+		return -2;
+
 	#ifdef DEBUG
 	printf("col:%c row:%c\n",co->x,co->y);
 	#endif
@@ -253,19 +291,25 @@ int set_miss( coordinate* co, battle_game* bg_r )
 void send_ship_arranged( int sock_udp )
 {
 	message_type mt = SHIP_ARRANGED;
-	send_data(sock_udp,(void*)&mt,sizeof(mt));
+	send_data(sock_udp, (char*)&mt, sizeof(mt));
+}
+
+void send_you_won( int sock_udp )
+{
+	message_type mt = YOU_WON;
+	send_data(sock_udp, (char*)&mt, sizeof(mt));
 }
 
 void send_ship_hit( int sock_udp, char col, char row )
 {
 	shot_mess sm = INIT_SHIP_HIT(col,row);
-	printf("mando HIT %c %c",col,row);
+	//printf("mando HIT %c %c",col,row);
 	send_data(sock_udp,(char*)&sm,sizeof(sm));
 }
 
 void send_ship_miss( int sock_udp, char col, char row )
 {
 	shot_mess sm = INIT_SHIP_MISS(col,row);
-	printf("mando MISS %c %c",col,row);
+	//printf("mando MISS %c %c",col,row);
 	send_data(sock_udp,(char*)&sm,sizeof(sm));
 }

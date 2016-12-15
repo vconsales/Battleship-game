@@ -6,7 +6,7 @@
 
 #define SIZE_GRIND 6
 #define SHIP_NUMBER 7
-#define DEBUG
+//#define DEBUG
 /****
 * per le griglie locali
 * x ->nave posizionata
@@ -50,7 +50,7 @@ typedef struct coord_t
 int init_game( battle_game *bg, int local, int sockt );
 int init_local_game( battle_game *bg );
 int init_remote_game( battle_game *bg, int sockt);
-void show_grind( battle_game *bg );
+void show_grind( battle_game *bg_l, battle_game *bg_r );
 
 /*******************************************
 * Imposta la nave nelle coordinate indicate
@@ -68,13 +68,11 @@ int set_ship( coordinate *c, battle_game *bg );
 * su sock_udp.
 * Se la griglia e' locale modifica la griglia
 * ed invia un messaggio di HIT/MISS a sock_udp.
-* Ignorare i result a seguire...
 *  2 tutte le navi sono state affondate
 *  1 se la nave e' stata colpita
 *  0 se il colpo e' andato a vuoto
 * -1 se le coordinate non sono valide
 * -2 se il colpo e' stato gia' sparato 
-* -3 impossibile contattare il peer
 ***************************************/
 int shot_ship( coordinate* c, battle_game* bg );
 

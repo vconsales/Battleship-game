@@ -22,6 +22,7 @@ unsigned char opposite_ready = 0;
 
 char mode = '>';
 unsigned char arranging_ships = 0;
+unsigned char your_turn = 1;
 /*************************************/
 
 void help();
@@ -31,6 +32,7 @@ void remote_req(int sockt, char* buf);
 void arrange_my_ship();
 void disconnect();
 void switch_mode();
+void i_am_free(int sock);
 
 int main( int argc, char* argv[] )
 {
@@ -110,7 +112,7 @@ int main( int argc, char* argv[] )
 			recv_data(sd,&buf_rec);
 			remote_req(sd, buf_rec);
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
-			printf("mess udp\n");
+			//printf("mess udp\n");
 			recv_data(socket_udp,&buf_rec);
 			remote_req(socket_udp, buf_rec);
 		} else {
@@ -217,6 +219,7 @@ void execute_cmd( char* str, int sockt )
 	req_conn_peer re;
 	char col;
 	char row;
+	int ret;
 
 	//printf("execute_cmd...\n");
 
@@ -251,11 +254,25 @@ void execute_cmd( char* str, int sockt )
 			printf("L'avversario non e' ancora pronto.\n");
 			return;
 		}
+
+		if( !your_turn ){
+			printf("Non è il tuo turno.\n");
+			return;
+		}
+
 		sscanf(higher_str," %c %c",&col,&row);
 		co.x = col;
 		co.y = row;
 
-		shot_ship( &co, &opposite_grind );
+		ret = shot_ship(&co, &opposite_grind);
+		if( ret == -1 )
+			printf("coordinate errate.\n");
+
+		if( ret == -2 )
+			printf("colpo gia' sparato.\n");
+
+		if( ret >= 0 )
+			your_turn = 0;
 	}
 
 	if( buf_rec )
@@ -349,9 +366,18 @@ void remote_req( int sockt, char* buf )
 		coordinate co;
 		co.x = ((shot_mess*)buf)->col;
 		co.y = ((shot_mess*)buf)->row;
-		shot_ship(&co,&my_grind);
-		show_grind(&my_grind);
-		show_grind(&opposite_grind);
+		printf("\bavversario ha sparato: %c %c\n",co.x,co.y);
+		ret = shot_ship(&co,&my_grind);
+		/*gestire errori in modo più pulito anche 
+		  aggiungendo nuovi messaggi*/
+		show_grind(&my_grind, &opposite_grind);
+
+		if( ret == 2 ){
+			printf("Hai perso! :( \n");
+			i_am_free(sock_serv_TCP);			
+		}
+
+		your_turn = 1;
 	} else if ( m_type == SHIP_ARRANGED ) {
 		printf("\b%s ha posizionato tutte le navi\n",opposite_name);
 		opposite_ready = 1;
@@ -360,15 +386,18 @@ void remote_req( int sockt, char* buf )
 		co.x = ((shot_mess*)buf)->col;
 		co.y = ((shot_mess*)buf)->row;
 		set_hit(&co,&opposite_grind);
-		printf("colpito!\n");
-		show_grind(&opposite_grind);
+		printf("\bcolpito!\n");
+		show_grind(&my_grind,&opposite_grind);
 	} else if ( m_type == SHIP_MISS ) {
 		coordinate co;
 		co.x = ((shot_mess*)buf)->col;
 		co.y = ((shot_mess*)buf)->row;
 		set_miss(&co,&opposite_grind);
-		printf("buco nell'acqua.\n");
-		show_grind(&opposite_grind);
+		printf("\bbuco nell'acqua.\n");
+		show_grind(&my_grind,&opposite_grind);
+	} else if ( m_type == YOU_WON ){
+		printf("\bHai vinto la partita! :D\n");
+		i_am_free(sock_serv_TCP);
 	} else
 		printf("Messaggio non riconosciuto\n");
 }
@@ -402,13 +431,26 @@ void arrange_my_ship(char* str)
 		printf("Errore inserimento coordinate\n");
 	else if ( res == 1 ) {
 		arranging_ships = 0;
+		if( opposite_ready )
+			your_turn = 1;
+		else
+			your_turn = 0;
 		printf("Navi posizionate con successo.\n");
 	}
 	/*#ifdef DEBUG
 	printf("%c %c\n",col,row);
 	printf("debug=%d\n",x);
 	#endif */
-	show_grind(&my_grind);
+	show_grind(&my_grind,NULL);
 //	}
 //1	printf("--NAVI POSIZIONATE\n");
+}
+
+void i_am_free( int sock )
+{
+	simple_mess sm = { I_AM_FREE, my_id };
+	opposite_ready = 0;
+	opposite_name[0] = '\0';
+	send_data(sock, (char*)&sm, sizeof(sm));
+	switch_mode();
 }
