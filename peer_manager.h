@@ -22,6 +22,13 @@ typedef struct des_peer_t
 	peer_state state;
 }des_peer;
 
+/**da implementare per rendere più sicuro il tutto*/
+typedef struct peer_vector_t
+{
+	des_peer** peers;
+	unsigned int n_peer;
+}peer_vector;
+
 /**attenzione all'esterno si puo' mettere in stato inconsistente**/
 extern des_peer** peers; 
 
@@ -34,6 +41,6 @@ int get_max_peers();
 * a carattere di dimensione n_peers.
 */
 int get_peers_name( char** list, int n_peers );
-//int more_peers(); aumenta il numero di peer massimi
+int more_peers();// aumenta il numero di peer massimi
 
 #endif

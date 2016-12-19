@@ -3,7 +3,7 @@
 /******variabili e metodi privati del gestore***/
 int last_pos = -1; //ultima posizione usata
 char position_free = 0;
-unsigned int max_peers = 50;
+unsigned int max_peers = 10;
 void alloc_peer( des_peer** p );
 /***********************************************/
 
@@ -11,6 +11,28 @@ void alloc_peer( des_peer** p );
 des_peer** peers;
 /************************/
 
+int more_peers()
+{
+	//int i;
+	unsigned int old_max = max_peers;
+	des_peer** new_v = NULL;
+
+	max_peers *= 2;
+	new_v = (des_peer**)malloc(sizeof(des_peer*)*max_peers);
+	if( new_v == NULL )
+		return -1;
+
+	/*azzero l'array di puntatori e poi ci copio
+	  i vecchi valori*/
+	memset(new_v,0,sizeof(des_peer*)*max_peers); 
+	memcpy(new_v,peers,sizeof(des_peer*)*old_max);
+
+	/*for( i=0; i<old_max; i++ )
+		new_v[i] = peers[i]; */
+	free(peers);
+	peers = new_v;
+	return max_peers;
+}
 
 int get_index_peer_sock( int sockt )
 {
@@ -38,17 +60,20 @@ int add_peer( int n_peers_connected )
 {
 	int i;
 
-	if( n_peers_connected == max_peers )
-		return -1;
+	if( n_peers_connected == max_peers ) 
+	{
+		i = more_peers();
+		if( i==-1 ) {
+			printf("Errore allocazione nuovo vettore\n");
+			return -1;
+		}
+	}
 
 	if( n_peers_connected == 0 )
 	{
 		printf("--aggiungo peer in pos. 0\n");
-		/*peers[0] = (des_peer*)malloc(sizeof(des_peer));
-		peers[0]->state = UNSET; */
 		alloc_peer(&peers[0]);
 		last_pos = 0;
-		//alloc_peer(&peers[0]);
 		return 0;
 	}
 
@@ -61,14 +86,13 @@ int add_peer( int n_peers_connected )
 	  quella variabile viene settata falsa se il ciclo viene
 	  eseguito e non si trova un campo vuoto.*/
 
-	if( position_free ) {
+	if( position_free ) 
+	{
 		for(i=0; i<=last_pos; i++)
 		{
 			if( peers[i] == NULL )
 			{
 				printf("--aggiungo peer in pos. %d\n",i);
-				/*peers[i] = (des_peer*)malloc(sizeof(des_peer));
-				peers[i]->state = UNSET;*/ 
 				alloc_peer(&peers[i]);
 				return i;
 			}
@@ -77,9 +101,9 @@ int add_peer( int n_peers_connected )
 	}
 	last_pos++;
 
+	//#ifdef DEBUG
 	printf("--aggiungo peer in pos. %d\n",last_pos);
-	/*peers[last_pos] = (des_peer*)malloc(sizeof(des_peer));
-	peers[last_pos]->state = UNSET; */
+	//#endif
 	alloc_peer(&peers[last_pos]);
 	return last_pos;
 }

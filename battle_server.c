@@ -48,8 +48,7 @@ int main( int argc, char* argv[] )
 	FD_SET( listener->socket, &master ); 
 	fdmax = listener->socket;	
 
-	//while( listener->peers_connected < get_max_peers() )
-	while(1)
+	while( 1 )
 	{
 		read_fds = master;
 		select( fdmax+1, &read_fds, NULL, NULL, NULL);
@@ -79,7 +78,13 @@ int main( int argc, char* argv[] )
 						close(j);
 						printf("chiudo il socket %d \n",j);
 						FD_CLR(j,&master);
-						remove_peer_having_sock(j);
+						int ind_close = get_index_peer_sock(j);
+						if( peers[ind_close]->state == PEER_PLAYING ){
+							/**invio messaggio peer avversario si è disconnesso**/
+							peers[ind_close]->state == PEER_FREE;
+						}
+
+						//remove_peer_having_sock(j);
 						/*ridurre fdmax. test*/
 						if( j == fdmax)
 							fdmax--;
