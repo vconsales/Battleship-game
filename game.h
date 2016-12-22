@@ -1,7 +1,7 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include "TCP.h"
+#include "net_wrapper.h"
 #include "messages.h"
 
 #define SIZE_GRIND 6

@@ -1,46 +1,48 @@
-#include "TCP.h"
+#include "net_wrapper.h"
 
-int open_serverTCP( uint16_t port, ServerTCP **serv )
+int open_serverTCP( uint16_t port )
 {
-	int ret = -1;
+	char ip_str[16];
+	int sock = -1, ret=-1;
+	struct sockaddr_in my_addr;
 
-	ServerTCP *new_serv = (ServerTCP*) malloc(sizeof(ServerTCP));	
+	//ServerTCP *new_serv = (ServerTCP*) malloc(sizeof(ServerTCP));	
 	ret = socket(AF_INET, SOCK_STREAM, 0);
 
-	if( ret == -1 )
-		return ret;
+	if( ret == -1 ) {
+		perror("Impossibile aprire socket");
+		return -1;
+	}
+	sock = ret;
 
-	new_serv->socket = ret;
+	memset(&my_addr, 0, sizeof(struct sockaddr_in));
+	my_addr.sin_family = AF_INET;
+	my_addr.sin_port = htons(port);
+	my_addr.sin_addr.s_addr = INADDR_ANY;
 
-	memset( &new_serv->my_addr, 0, sizeof(struct sockaddr_in));
-	new_serv->my_addr.sin_family = AF_INET;
-	new_serv->my_addr.sin_port = htons(port);
-	new_serv->my_addr.sin_addr.s_addr = INADDR_ANY;
-	new_serv->peers_connected = 0;
-
-	ret = bind( new_serv->socket, (struct sockaddr*)&new_serv->my_addr, sizeof(struct sockaddr_in) );
+	ret = bind(sock, (struct sockaddr*)&my_addr, sizeof(struct sockaddr_in));
 	
 	if( ret == -1 )
 	{
-		printf("bind fallita \n");
-		close( new_serv->socket );
-		return ret;
-		/*exit(1);*/
+		//*printf("bind fallita \n");
+		perror("Bind fallita");
+		close(sock);
+		return -1;
 	}
 
-	ret = listen( new_serv->socket, 10);
+	inet_ntop(AF_INET, &my_addr.sin_addr, ip_str, 16);
+	#ifdef DEBUG
+	printf("Server aperto. ip:%s porta:%hu socket:%d\n",ip_str,port,sock_serv);
+	#else
+	printf("Server aperto. ip:127.0.0.1 porta:%hu\n",port);
+	#endif
 
-	*serv = new_serv;
-
-	return ret;
-}
-
-int close_serverTCP( ServerTCP **serv )
-{
-	int ret = close( (*serv)->socket );
-	free( *serv );
-	*serv = NULL;
-	return ret;	
+	ret = listen(sock, 10);
+	
+	if( ret == -1)
+		return -1;
+	else
+		return sock;
 }
 
 int close_connection( ConnectionTCP *conn )
@@ -49,16 +51,21 @@ int close_connection( ConnectionTCP *conn )
 }
 
 
-int accept_serverTCP( ServerTCP *serv, ConnectionTCP *conn )
+int accept_serverTCP( int sock_serv, ConnectionTCP *conn )
 {
 	int sd;
+	char ip_str[16];
 	socklen_t len = sizeof(conn->cl_addr);
 	/*printf("sto per accettare. len=%d \n",len);*/
-	sd = accept(serv->socket, (struct sockaddr*)&conn->cl_addr, &len );
+	sd = accept(sock_serv, (struct sockaddr*)&conn->cl_addr, &len);
+	if( sd == -1 ) {
+		perror("Errore accept");
+		return -1;
+	}
 	conn->socket = sd;
-	serv->peers_connected++;
-	printf("nuovo peer connesso. nuova socket: %d \n",sd);
 
+	inet_ntop(AF_INET, ((char*)&conn->cl_addr.sin_addr), ip_str, 16);
+	printf("nuovo peer connesso ip:%s porta:%hu\n",ip_str,ntohs(conn->cl_addr.sin_port));
 	return sd;
 }
 
@@ -93,7 +100,6 @@ int recv_data( int sockt, char** buf )
 	//printf("received:%d buf: %s\n",received,*buf);
 	if( received != nbytes ){
 		//printf("pacchetto {buf} ha dim %d \n", received);
-		my_errno = LESS_BYTE_RECEIVED;
 		return -1;
 	}
 

@@ -1,8 +1,7 @@
 #include "game.h"
-#include "TCP.h"
+#include "net_wrapper.h"
 #include "messages.h"
 #include <signal.h>
-#define DEBUG
 
 
 /***Variabili globali***/
@@ -70,14 +69,14 @@ int main( int argc, char* argv[] )
 
 	if( sd == -1 )
 	{
-		printf("Errore socket non aperta \n");
+		perror("Errore socket non aperta");
 		return -1;
 	}
 
 	ret = connect(sd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) );
 	if( ret == -1 )
 	{
-		printf("Errore connect.\n");
+		perror("Errore connect");
 		close(sd);		
 		exit(1);
 	} else 
@@ -112,7 +111,12 @@ int main( int argc, char* argv[] )
 		if( FD_ISSET(sd, &read_fds) )
 		{
 			printf("\b");
-			recv_data(sd,&buf_rec);
+			ret = recv_data(sd,&buf_rec);
+			if( ret == -1 )	{
+				printf("Il server ha chiuso la connessione\n");
+				close(sd);
+				exit(1);
+			}
 			remote_req(sd, buf_rec);
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
 			//printf("mess udp\n");
@@ -237,6 +241,8 @@ void execute_cmd( char* str, int sockt )
 
 	if( strcmp(cmd,"!help") == 0 ) {
 		help();
+	} else if ( strcmp(str, "!quit") == 0 ){
+		disconnect();
 	} else if ( arranging_ships ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
@@ -246,8 +252,6 @@ void execute_cmd( char* str, int sockt )
 		send_data(sockt,(char*)&sm,sizeof(sm));
 		recv_data(sockt,&buf_rec);
 		printf("Peer connessi al server:\n%s",buf_rec);
-	} else if ( strcmp(str, "!quit") == 0 ){
-		disconnect();
 	} else if( strcmp(cmd, "!connect") == 0 ) {
 		#ifdef DEBUG
 		printf("mi connetto a %s\n",higher_str);
@@ -409,7 +413,7 @@ void remote_req( int sockt, char* buf )
 		i_am_free(sock_serv_TCP);
 	} else if( m_type == OPPONENT_DISCONNECTED ){
 		printf("\bIl tuo avversario si è disconnesso.\n");
-		mode = '>';		
+		mode = '>'; arranging_ships=0;		
 	} else {
 		printf("Messaggio non riconosciuto\n");
 	}
@@ -469,5 +473,6 @@ void disconnect( int sig )
 	m.peer_id = my_id;
 	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
 	close(sock_serv_TCP);
+	printf("\n\n");
 	exit(0);
 }

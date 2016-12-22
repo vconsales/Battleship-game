@@ -1,6 +1,6 @@
 #ifndef PEER_MANAGER_H
 #define PEER_MANAGER_H
-#include "TCP.h"
+#include "net_wrapper.h"
 
 #define NAME_LEN 64
 
@@ -22,21 +22,15 @@ typedef struct des_peer_t
 	peer_state state;
 }des_peer;
 
-/*da implementare per rendere più sicuro il tutto*/
-typedef struct peer_vector_t
-{
-	des_peer** peers;
-	unsigned int n_peer;
-}peer_vector;
-
-/**attenzione all'esterno si puo' mettere in stato inconsistente**/
-extern des_peer** peers; 
-
+int init_peer_manager();
+des_peer* get_peer( int index );
+int remove_peer(int index );
 int get_index_peer_name( char* name );
 int get_index_peer_sock( int sockt );
-int add_peer( int n_peers_connected );
+int add_peer();
+int remove_peer( int index );
 int remove_peer_having_sock( int sockt );
-int get_max_peers();
+int get_max_peers_n();
 
 /*se l'id corrisponde ad un peer registrato ritorna 1 altrimenti 0*/
 int is_valid_id( int id );
@@ -44,7 +38,7 @@ int is_valid_id( int id );
 /*Fornire come primo parametro una array di puntatori 
 * a carattere di dimensione n_peers.
 */
-int get_peers_name( char** list, int n_peers );
+int get_peers_name( char** list );
 int more_peers();// aumenta il numero di peer massimi
 
 #endif
