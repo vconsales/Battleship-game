@@ -22,7 +22,7 @@ typedef struct des_peer_t
 	peer_state state;
 }des_peer;
 
-/**da implementare per rendere più sicuro il tutto*/
+/*da implementare per rendere più sicuro il tutto*/
 typedef struct peer_vector_t
 {
 	des_peer** peers;
@@ -37,6 +37,10 @@ int get_index_peer_sock( int sockt );
 int add_peer( int n_peers_connected );
 int remove_peer_having_sock( int sockt );
 int get_max_peers();
+
+/*se l'id corrisponde ad un peer registrato ritorna 1 altrimenti 0*/
+int is_valid_id( int id );
+
 /*Fornire come primo parametro una array di puntatori 
 * a carattere di dimensione n_peers.
 */

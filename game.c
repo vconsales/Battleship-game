@@ -24,11 +24,11 @@ const char c_SHIP = 'X';
 
 
 uint8_t char_to_coord( char c );
-int normalize( coordinate *co );
-void set_n_ship_hit( battle_game *bg, uint8_t n);
-void set_n_ship_pos( battle_game *bg, uint8_t n);
-int shot_ship_local( coordinate *co, battle_game* bg );
-int shot_ship_remote( coordinate *co, battle_game *bg );
+static int normalize( coordinate *co );
+static void set_n_ship_hit( battle_game *bg, uint8_t n);
+static void set_n_ship_pos( battle_game *bg, uint8_t n);
+static int shot_ship_local( coordinate *co, battle_game* bg );
+static int shot_ship_remote( coordinate *co, battle_game *bg );
 void send_ship_arranged( int sock_udp );
 void send_ship_hit( int sock_udp, char col, char row );
 void send_ship_miss( int sock_udp, char col, char row );
@@ -177,6 +177,7 @@ int shot_ship( coordinate *c, battle_game *bg )
 		return shot_ship_remote(c,bg);
 }
 
+static
 int shot_ship_local( coordinate* c, battle_game *bg )
 {
 	uint8_t n_hit = get_n_ship_hit(bg);
@@ -209,6 +210,7 @@ int shot_ship_local( coordinate* c, battle_game *bg )
 		return -2; /*Nave già colpita*/
 }
 
+static
 int shot_ship_remote( coordinate *co, battle_game *bg )
 {
 	int ret;
@@ -235,6 +237,7 @@ int shot_ship_remote( coordinate *co, battle_game *bg )
 	return 0;
 }
 
+static
 void set_n_ship_hit( battle_game *bg, uint8_t n )
 {
 	/*azzera le navi colpite*/
@@ -245,6 +248,7 @@ void set_n_ship_hit( battle_game *bg, uint8_t n )
 	bg->state |= (n << 3);
 }
 
+static
 void set_n_ship_pos( battle_game *bg, uint8_t n ) 
 {
 	/*azzera le navi posizionate*/

@@ -81,7 +81,7 @@ int main( int argc, char* argv[] )
 						int ind_close = get_index_peer_sock(j);
 						if( peers[ind_close]->state == PEER_PLAYING ){
 							/**invio messaggio peer avversario si è disconnesso**/
-							peers[ind_close]->state == PEER_FREE;
+							peers[ind_close]->state = PEER_FREE;
 						}
 
 						//remove_peer_having_sock(j);
@@ -96,8 +96,11 @@ int main( int argc, char* argv[] )
 						 *aggiornate le strutture dati associate ai peer*/
 						//printf("Ricevuto messaggio\n");
 						ret = analyze_message(j, buf_rec, DIM_BUF);
-						if( ret == -1 )
-							printf("Messaggio non riconosciuto\n");
+						if( ret == -1 ){
+							printf("chiudo il socket %d \n",j);
+							close(j);
+							FD_CLR(j,&master);
+						}
 					}
 				}
 			}
@@ -113,109 +116,93 @@ int main( int argc, char* argv[] )
 int analyze_message( int sockt, char* buf, size_t max_len )
 {
 	des_peer* p;
-	char cmd[50];
-	char arg[100];
 	int res = -1;
-	int sender_id;
-	int receiver_id;
 
 	message_type m;
 	req_conn_peer re;
 
 	//printf("analizzo messaggio\n");
-	int index = get_index_peer_sock(sockt);
+	//int index = get_index_peer_sock(sockt);
+	int index = ((simple_mess*)buf)->peer_id;
 
-	if( index == -1 ) {
-		printf("Peer non trovato\n");
-		return res;
+	if( !is_valid_id(index) ) {
+		printf("Peer con id=%d non trovato\n",index);
+		return -1;
 	}
-
 	p = peers[index];
-	//printf("Lo stato del peer %d e' %d\n",index,peers[index]->state);
-	memcpy(&m, buf, sizeof(m));
-	//gestire gli errori
-	//forse si possono togliere 
-	/*if( m == REQ_CONN_TO_PEER) 
-			printf("richiede connessione \n");*/
-	switch( p->state )
-	{
-		case UNSET:
-			//sscanf(buf, " MY NAME IS %s",p->name); 
-			//m = ntohl(m);
-			if( m == PEER_SETS_NAME ){
-				strcpy(p->name, ((reg_set_name*)buf)->name);
-				printf("Si e' connesso %s\n",p->name);
-				//controllare se esiste un altro con lo stesso nome
-				message_type m = NAME_ACCEPTED;
-				send_data(sockt, (char*)&m, sizeof(m));
-				p->state = NAME_SET;
-				res = 0;
-			}
-			break;
-		case NAME_SET:
-			//ricevo la porta su cui ascolta
-			sscanf(buf, "MY PORT IS %hu", &p->udp_port); 
-		   	p->state = PEER_FREE;
-		   	res = 1;
-		   	printf("PEER %s riceve su porta UDP %hu \n",p->name,ntohs(p->udp_port));
-			break;
-		case PEER_FREE:
-			//printf("PEER_FREE\n");
-			sscanf(buf," %s %s",cmd,arg);
-			//printf("cmd:%s arg:%s",cmd,arg);
-			if( strcmp(buf,"LIST OF PEERS") == 0 ) {
-				//printf("Richiesta lista di peer\n");
-				res = send_list_of_peer(p->conn.socket); 
-				//printf("la send_list_of_peer ha mandato %d\n",n);		
-			/*} else if ( strcmp(cmd,"CONNECT") == 0) {
-				printf("%s richiede connessione a %s\n",p->name,arg);
-				connect_request(index,arg);
-				res = 4;*/
-			} else if( m == REQ_CONN_TO_PEER) {
-				printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
-				connect_request(index,((req_conn_peer*)buf)->peer_name);
-				res = 4;
-			} else if ( m == ACCEPT_CONN_FROM_PEER ) {
-				//des_peer* pe_se = peers[index];
-				sender_id = ((response_conn_to_peer*)buf)->sender_id;
-				receiver_id = ((response_conn_to_peer*)buf)->receiver_id;
 
-				re.t = CONN_TO_PEER_ACCEPTED;
-				/*Ricopio i dati del ricevitore nel messaggio che verra'
-				  inviato al peer che aveva richiesto la connessione.*/
-				re.peer_id = ((response_conn_to_peer*)buf)->receiver_id;
-				strcpy(re.peer_name,peers[receiver_id]->name);
-				//re.peer_udp_port = p->udp_port;
-				memcpy(&re.peer_addr,&(p->conn.cl_addr),sizeof(re.peer_addr));
-				re.peer_addr.sin_port = peers[receiver_id]->udp_port;
-
-				p = peers[sender_id]; 
-				send_data(p->conn.socket,(char*)&re,sizeof(re));
-
-				peers[sender_id]->state = PEER_PLAYING;
-				peers[sender_id]->opponent_id = receiver_id;
-
-				peers[receiver_id]->state = PEER_PLAYING;
-				peers[sender_id]->state = PEER_PLAYING;
-				res = 5;
-			} else if ( m == REFUSE_CONN_FROM_PEER ) {
-				re.t = CONN_TO_PEER_REFUSED;
-				
-				sender_id = ((response_conn_to_peer*)buf)->sender_id; //indirizzo del mittente
-				p = peers[sender_id];
-				send_data(p->conn.socket,(char*)&re,sizeof(re));
-				res = 6;
-			} else {
-				res = -1;
-			}
-			break;
-		case PEER_PLAYING:
-			printf("PEER PLAYING\n");
-			res = 5;
-			break;
-		default:
-			res = -1;
+	if( p->conn.socket != sockt ) {
+		printf("Errore di sicurezza. Messaggio rifiutato\n");
+		return -2;
 	}
+
+	memcpy(&m, buf, sizeof(m));
+	res = m;
+
+	if( m == DISCONNECT ) {
+		if( p->state == PEER_PLAYING )
+		{
+			m = OPPONENT_DISCONNECTED;
+			index = p->opponent_id;
+			p = peers[index];
+			send_data(p->conn.socket,(char*)&m,sizeof(m));
+		}
+		printf("%s si è disconnesso\n",p->name);
+		return -1;
+	}else if( m == PEER_SETS_NAME ) {
+		if( p->state != UNSET )
+			return -1;
+
+		strcpy(p->name, ((reg_set_name*)buf)->name);
+		printf("Si e' connesso %s\n",p->name);
+		//controllare se esiste un altro con lo stesso nome
+		m = NAME_ACCEPTED;
+		send_data(sockt, (char*)&m, sizeof(m));
+		p->state = NAME_SET;
+	} else if( m == PEER_SETS_UDP_PORT) {
+		if( p->state != NAME_SET )
+			return -1;
+
+	   	p->state = PEER_FREE;
+	   	p->udp_port = ((reg_set_udp_port*)buf)->udp_port;
+	   	printf("PEER %s riceve su porta UDP %hu \n",p->name,ntohs(p->udp_port));
+	} else if ( m == LIST_OF_PEERS ) {
+		printf("Richiesta lista di peer\n");
+		res = send_list_of_peer(p->conn.socket); 
+	} else if( m == REQ_CONN_TO_PEER) {
+		if( p->state != PEER_FREE )
+			return -1;
+
+		printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
+		connect_request(index,((req_conn_peer*)buf)->peer_name);
+	} else if ( m == ACCEPT_CONN_FROM_PEER ) {
+		re.t = CONN_TO_PEER_ACCEPTED;		
+		/* Ricopio i dati del peer che ha accettato nel messaggio di risposta*/
+		re.peer_id = index;
+		strcpy(re.peer_name,p->name);
+		memcpy(&re.peer_addr,&(p->conn.cl_addr),sizeof(re.peer_addr));
+		/*la porta udp è diversa della porta tcp della connessione client-server*/
+		re.peer_addr.sin_port = p->udp_port;
+
+		int opponent_id = ((response_conn_to_peer*)buf)->opponent_id;
+		/*mando il messaggio all'avversario*/
+		p = peers[opponent_id]; 
+		send_data(p->conn.socket,(char*)&re,sizeof(re));
+
+		p->state = PEER_PLAYING;
+		p->opponent_id = index;
+
+		p = peers[index];
+		p->state = PEER_PLAYING;
+		p->opponent_id = opponent_id;
+	} else if ( m == REFUSE_CONN_FROM_PEER ) {
+		re.t = CONN_TO_PEER_REFUSED;
+		p = peers[((response_conn_to_peer*)buf)->opponent_id];
+		send_data(p->conn.socket,(char*)&re,sizeof(re));
+	} else {
+		res = -1;
+	}
+
 	return res;
 }
 

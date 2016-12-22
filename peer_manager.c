@@ -178,3 +178,13 @@ int get_peers_name( char** list, int n_peers )
 
 	return strlen(*list)+1;
 }
+
+int is_valid_id( int id )
+{
+	if( id >= max_peers )
+		return 0;
+	if( peers[id] == NULL )
+		return 0;
+	else
+		return 1;
+}

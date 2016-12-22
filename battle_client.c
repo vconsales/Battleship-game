@@ -1,7 +1,7 @@
 #include "game.h"
 #include "TCP.h"
 #include "messages.h"
-
+#include <signal.h>
 #define DEBUG
 
 
@@ -83,6 +83,9 @@ int main( int argc, char* argv[] )
 	} else 
 		printf("Connesso correttamente al server %s\n",argv[1]);
 
+	/*assegno handler al segnale generato da CTRL+C*/
+	signal(SIGINT,disconnect);
+
 	socket_udp = socket(AF_INET,SOCK_DGRAM,0);
 	if( socket_udp == -1 ) {
 		printf("Errore socket udp non aperta.\n");
@@ -149,8 +152,8 @@ void register_to_serv( int sd )
 	char buf[DIM_BUFF];
 	char* buf_rec = NULL;
 	
-	reg_set_name r = INIT_REG_SET_NAME;
-	r.peer_id = my_id;
+	reg_set_name r_name = INIT_REG_SET_NAME;
+	reg_set_udp_port r_udp = INIT_REG_SET_UDP_PORT;
 
 	int ret = recv_data(sd, &buf_rec);
 	if( ret ) {
@@ -168,10 +171,11 @@ void register_to_serv( int sd )
 			printf("Il tuo nome e' troppo lungo e verra' troncato");
 		buf[63] = '\0';
 
-		//r.t = htonl(PEER_SETS_NAME);
-		strcpy(r.name,buf);
+		//r_name.t = htonl(PEER_SETS_NAME);
+		strcpy(r_name.name,buf);
 
-		ret = send_data(sd, (char*)&r, sizeof(r));
+		r_name.peer_id = my_id;
+		ret = send_data(sd, (char*)&r_name, sizeof(r_name));
 		ret = recv_data(sd, &buf_rec); 
 
 		/*si puo' togliere da qui forse*/
@@ -205,8 +209,10 @@ _set_udp_port:
 		goto _set_udp_port;
 	}
 
-	sprintf(buf, "MY PORT IS %hu",my_udp_port);
-	send_data( sd, buf, strlen(buf)+1 );
+	r_udp.peer_id = my_id;
+	r_udp.udp_port = my_udp_port;
+	//sprintf(buf, "MY PORT IS %hu",my_udp_port);
+	send_data( sd, (char*)&r_udp, sizeof(r_udp) );
 
 	free(buf_rec);
 }
@@ -234,8 +240,10 @@ void execute_cmd( char* str, int sockt )
 	} else if ( arranging_ships ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
-		strcpy(higher_str,"LIST OF PEERS");
-		send_data(sockt,higher_str,strlen(higher_str)+1);
+		simple_mess sm;
+		sm.t = LIST_OF_PEERS;
+		sm.peer_id = my_id;
+		send_data(sockt,(char*)&sm,sizeof(sm));
 		recv_data(sockt,&buf_rec);
 		printf("Peer connessi al server:\n%s",buf_rec);
 	} else if ( strcmp(str, "!quit") == 0 ){
@@ -244,6 +252,11 @@ void execute_cmd( char* str, int sockt )
 		#ifdef DEBUG
 		printf("mi connetto a %s\n",higher_str);
 		#endif
+		if( strcmp(higher_str,my_name) == 0 ){
+			printf("Non puoi giocare con te stesso!\n");
+			return;
+		}
+
 		re.t = REQ_CONN_TO_PEER;
 		re.peer_id = my_id;
 		strcpy(re.peer_name,higher_str);
@@ -295,10 +308,6 @@ void remote_req( int sockt, char* buf )
 		 *di connessione accettata mentre si e' in
 		 *partita.*/
 		if( mode == '#') return;
-
-		/*printf("id:%d name:%s\n",
-			   ((req_conn_peer*)buf)->peer_id, 
-			   ((req_conn_peer*)buf)->peer_name );*/
 		
 		printf(">Accetti connessione con %s? [S/N]: ", ((req_conn_peer*)buf)->peer_name);
 		scanf(" %[^\n]c",&c);
@@ -315,8 +324,8 @@ void remote_req( int sockt, char* buf )
 			//printf("Rifiutato\n");
 			re.t = REFUSE_CONN_FROM_PEER;
 		}
-		re.sender_id = ((req_conn_peer*)buf)->peer_id;
-		re.receiver_id = my_id;
+		re.opponent_id = ((req_conn_peer*)buf)->peer_id;
+		re.peer_id = my_id;
 		//convert_to_network_order(&re);
 		send_data(sockt,(char*)&re,sizeof(re));	
 
@@ -398,17 +407,12 @@ void remote_req( int sockt, char* buf )
 	} else if ( m_type == YOU_WON ){
 		printf("\bHai vinto la partita! :D\n");
 		i_am_free(sock_serv_TCP);
-	} else
+	} else if( m_type == OPPONENT_DISCONNECTED ){
+		printf("\bIl tuo avversario si è disconnesso.\n");
+		mode = '>';		
+	} else {
 		printf("Messaggio non riconosciuto\n");
-}
-
-void disconnect()
-{
-	#ifdef DEBUG
-	printf("disconnessione\n");
-	#endif
-	close(sock_serv_TCP);
-	exit(0);
+	}
 }
 
 void switch_mode(){
@@ -453,4 +457,17 @@ void i_am_free( int sock )
 	opposite_name[0] = '\0';
 	send_data(sock, (char*)&sm, sizeof(sm));
 	switch_mode();
+}
+
+void disconnect( int sig )
+{
+	#ifdef DEBUG
+	printf("disconnessione\n");
+	#endif
+	simple_mess m;
+	m.t = DISCONNECT;
+	m.peer_id = my_id;
+	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
+	close(sock_serv_TCP);
+	exit(0);
 }

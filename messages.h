@@ -25,10 +25,11 @@ typedef enum {
 	YOU_WON,
 	I_AM_FREE,
 	DISCONNECT,
+	OPPONENT_DISCONNECTED,
 } message_type;
 
 #define INIT_REG_SET_NAME { PEER_SETS_NAME, -1, {"\0"} }
-#define INIT_REG_SET_UDP_PORT { PEER_SETS_UDP_PORT, 0 }
+#define INIT_REG_SET_UDP_PORT { PEER_SETS_UDP_PORT, 0, 0 }
 #define INIT_REQ_CONN_FROM_PEER { REQ_CONN_FROM_PEER, -1, '\0' }
 #define INIT_SHIP_HIT(col,row) { SHIP_HIT, (col), (row)};
 #define INIT_SHIP_MISS(col,row) { SHIP_MISS, (col), (row)};
@@ -116,8 +117,8 @@ typedef struct req_conn_peer_t
 typedef struct response_conn_to_peer_t
 {
 	message_type t;
-	int sender_id;
-	int receiver_id;
+	int peer_id;
+	int opponent_id;
 }__attribute__((packed)) response_conn_to_peer;
 
 /*******************************************
