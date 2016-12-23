@@ -68,8 +68,7 @@ int accept_serverTCP( int sock_serv, ConnectionTCP *conn )
 	printf("nuovo peer connesso ip:%s porta:%hu\n",ip_str,ntohs(conn->cl_addr.sin_port));
 	return sd;
 }
-
-//gestire la conversione di formato
+/*
 int recv_data( int sockt, char** buf )
 {
 	if( *buf != NULL )
@@ -104,6 +103,33 @@ int recv_data( int sockt, char** buf )
 	}
 
 	return received;
+}*/
+
+int recv_data( int sockt, my_buffer* my_buff )
+{
+	uint32_t nbytes = 0;
+	uint32_t received = 0; 
+
+	received = recv( sockt, (void*)&nbytes, 4, 0 );
+
+	if( received < 4 )
+		return -1;
+	
+	nbytes = ntohl(nbytes);
+	if( nbytes > my_buff->size )
+	{
+		if( my_buff->buf != NULL )
+			free(my_buff->buf);
+		my_buff->buf = (char*)malloc(nbytes);	
+	}
+	clear_my_buffer(my_buff);
+
+	received = recv( sockt, my_buff->buf, nbytes, 0 );
+	
+	if( received != nbytes )
+		return -1;
+
+	return received;
 }
 
 int send_data( int sockt, char* buf, uint32_t buf_len )
@@ -128,4 +154,9 @@ int send_data( int sockt, char* buf, uint32_t buf_len )
 	
 
 	return bsend;
+}
+void clear_my_buffer( my_buffer *myb )
+{
+	if( myb->size > 0 && myb->buf!=NULL )
+		memset(myb->buf,0,myb->size);
 }

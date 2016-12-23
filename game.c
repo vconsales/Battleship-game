@@ -23,16 +23,15 @@ const char c_EMPTY = ' ';
 const char c_SHIP = 'X';
 
 
-uint8_t char_to_coord( char c );
 static int normalize( coordinate *co );
 static void set_n_ship_hit( battle_game *bg, uint8_t n);
 static void set_n_ship_pos( battle_game *bg, uint8_t n);
 static int shot_ship_local( coordinate *co, battle_game* bg );
 static int shot_ship_remote( coordinate *co, battle_game *bg );
-void send_ship_arranged( int sock_udp );
-void send_ship_hit( int sock_udp, char col, char row );
-void send_ship_miss( int sock_udp, char col, char row );
-void send_you_won( int sock_udp );
+static void send_ship_arranged( int sock_udp );
+static void send_ship_hit( int sock_udp, char col, char row );
+static void send_ship_miss( int sock_udp, char col, char row );
+static void send_you_won( int sock_udp );
 
 uint8_t is_local(battle_game *bg)
 {
@@ -121,24 +120,6 @@ int init_remote_game( battle_game *bg, int sockt)
 	return init_game(bg, 0, sockt);
 }
 
-int normalize( coordinate *co )
-{
-	if( co->x >= 97)
-		co->x = (uint8_t)co->x - 'a';
-	else	
-		co->x = (uint8_t)co->x - 'A';
-	co->y = (uint8_t)co->y - '0' - 1;
-	
-	#ifdef DEBUG
-	printf("co->x %d co->y %d\n",co->x,co->y);
-	#endif
-
-	if( co->x<0 || co->y<0 || co->x>=SIZE_GRIND || co->y>=SIZE_GRIND )
-		return -1;
-	else
-		return 0;
-}
-
 int set_ship( coordinate *c, battle_game *bg )
 {
 	int n_pos = get_n_ship_pos(bg);	
@@ -175,6 +156,25 @@ int shot_ship( coordinate *c, battle_game *bg )
 		return shot_ship_local(c,bg);
 	else
 		return shot_ship_remote(c,bg);
+}
+
+static
+int normalize( coordinate *co )
+{
+	if( co->x >= 97)
+		co->x = (uint8_t)co->x - 'a';
+	else	
+		co->x = (uint8_t)co->x - 'A';
+	co->y = (uint8_t)co->y - '0' - 1;
+	
+	#ifdef DEBUG
+	printf("co->x %d co->y %d\n",co->x,co->y);
+	#endif
+
+	if( co->x<0 || co->y<0 || co->x>=SIZE_GRIND || co->y>=SIZE_GRIND )
+		return -1;
+	else
+		return 0;
 }
 
 static
@@ -292,18 +292,21 @@ int set_miss( coordinate* co, battle_game* bg_r )
 	return 0;
 }
 
+static
 void send_ship_arranged( int sock_udp )
 {
 	message_type mt = SHIP_ARRANGED;
 	send_data(sock_udp, (char*)&mt, sizeof(mt));
 }
 
+static
 void send_you_won( int sock_udp )
 {
 	message_type mt = YOU_WON;
 	send_data(sock_udp, (char*)&mt, sizeof(mt));
 }
 
+static
 void send_ship_hit( int sock_udp, char col, char row )
 {
 	shot_mess sm = INIT_SHIP_HIT(col,row);
@@ -311,6 +314,7 @@ void send_ship_hit( int sock_udp, char col, char row )
 	send_data(sock_udp,(char*)&sm,sizeof(sm));
 }
 
+static
 void send_ship_miss( int sock_udp, char col, char row )
 {
 	shot_mess sm = INIT_SHIP_MISS(col,row);

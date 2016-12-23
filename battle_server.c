@@ -4,29 +4,19 @@
 
 /***Variabili globali***/
 int sock_serv;
-extern des_peer** peers;
-extern int max_peers;
-const unsigned int DIM_BUF = 1024;
+my_buffer my_buf = INIT_MY_BUFFER;
 /**********************/
 
-int analyze_message( int sockt, char* buf, size_t max_len );
+void requests_manager();
+int analyze_message( int sockt, char* buf );
 int send_welcome( int sockt, int id );
 int send_list_of_peer( int sockt );
 int connect_request( int sender_id, char* opponent_name );
-void disconnect_peer( int id );
+void peer_quit( int id );
 
 int main( int argc, char* argv[] )
 {
-	int sd, id=0, j=0, ret=0;
-	des_peer* pe;
 	uint16_t port = 0;
-	char* buf_rec = NULL;
-	int fdmax;
-
-	fd_set master; /*set principale*/
-	fd_set read_fds; /*set di lettura*/
-	FD_ZERO(&master);
-	FD_ZERO(&read_fds);
 
 	if( argc < 2 ) {
 		printf("Numero di porta non inserito!\n");
@@ -49,9 +39,25 @@ int main( int argc, char* argv[] )
 	/*aggiungo handler al segnale generato da ctrl+c*/
 	//signal(SIGINT,close_serverTCP);
 
+	requests_manager();
+
+	close(sock_serv);
+	return 0;
+}
+
+void requests_manager()
+{
+	int fdmax, i, id, ret, sd;
+	des_peer* pe;
+
+	fd_set master; /*set principale*/
+	fd_set read_fds; /*set di lettura*/
+	FD_ZERO(&master);
+	FD_ZERO(&read_fds);
+
 	/*aggiungo listener nel set*/
 	FD_SET( sock_serv, &master ); 
-	fdmax = sock_serv;	
+	fdmax = sock_serv;
 
 	while( 1 )
 	{
@@ -59,11 +65,11 @@ int main( int argc, char* argv[] )
 		select( fdmax+1, &read_fds, NULL, NULL, NULL);
 
 		/*scorro i descrittori*/
-		for( j=0; j<=fdmax; j++ )
+		for( i=0; i<=fdmax; i++ )
 		{
-			if( FD_ISSET(j, &read_fds) )
+			if( FD_ISSET(i, &read_fds) )
 			{
-				if( j == sock_serv ){
+				if( i == sock_serv ){
 					//ret = listen(listener->socket, 10);	 //forse non serve				
 					id = add_peer();
 					if( id != -1 ){
@@ -77,41 +83,32 @@ int main( int argc, char* argv[] )
 					} else
 						printf("Connessione rifiutata. Troppi peer connessi\n");		
 				} else {
-					//printf("--socket non listener\n");
-					ret = recv_data(j, &buf_rec);
-					//printf("--mess: %s\n",buf);
-					if( ret == -1 ){
-						printf("chiudo il socket %d \n",j);
-						
-						id = get_index_peer_sock(j);
-						disconnect_peer(id);
+					ret = recv_data(i,&my_buf);
+					if( ret == -1 ){						
+						id = get_index_peer_sock(i);
+						peer_quit(id);
 
-						FD_CLR(j,&master);
-						close(j);
-						if( j == fdmax)
+						FD_CLR(i,&master);
+						close(i);
+						if( i == fdmax)
 							fdmax--;
 					} else {
 						/*Il messaggio ricevuto viene analizzato secondo
 						 *il protocollo scelto. Se necessario vengono
 						 *aggiornate le strutture dati associate ai peer*/
 						//printf("Ricevuto messaggio\n");
-						ret = analyze_message(j, buf_rec, DIM_BUF);
+						ret = analyze_message(i, my_buf.buf);
 						if( ret == -1 ){
-							FD_CLR(j,&master);
-							close(j);
-							if( j == fdmax)
+							FD_CLR(i,&master);
+							close(i);
+							if( i == fdmax)
 								fdmax--;
 						}
 					}
 				}
 			}
 		}
-	}
-
-	close(sock_serv);
-	free(buf_rec);
-
-	return 0;
+	}	
 }
 
 /********************************************************
@@ -121,7 +118,7 @@ int main( int argc, char* argv[] )
 *   - -1 in caso di errore di protezione
 *   - -2 in caso di messaggio non riconosciuto
 */
-int analyze_message( int sockt, char* buf, size_t max_len )
+int analyze_message( int sockt, char* buf )
 {
 	des_peer* p;
 
@@ -145,9 +142,8 @@ int analyze_message( int sockt, char* buf, size_t max_len )
 
 	memcpy(&m, buf, sizeof(m));
 
-	if( m == DISCONNECT ) {
-		disconnect_peer(index);
-		printf("%s si è disconnesso\n",p->name);
+	if( m == DISCONNECT_GAME ) {
+		set_peer_free(index);
 	}else if( m == PEER_SETS_NAME ) {
 		if( p->state != UNSET )
 			return -1;
@@ -268,14 +264,24 @@ int connect_request(int sender_id, char* opponent_name )
 	return 0;
 }
 
-void disconnect_peer( int id )
+void peer_quit( int id )
+{
+	des_peer* p = get_peer(id);
+	if( !p ) 
+		return;
+
+	printf("Il peer %s si è disconnesso dal server\n",p->name);
+	set_peer_free(id);
+	remove_peer(id);
+}
+
+void set_peer_free( int id )
 {
 	des_peer* p = get_peer(id);
 	des_peer* opponent;
 	message_type m;
 
-	if( !p ) 
-		return;
+	if( !p ) return;
 
 	if( p->state == PEER_PLAYING )
 	{
@@ -283,7 +289,8 @@ void disconnect_peer( int id )
 		opponent = get_peer(p->opponent_id);
 		send_data(opponent->conn.socket,(char*)&m,sizeof(m));
 		opponent->state = PEER_FREE;
+		p->state = PEER_FREE;
+		printf("%s si è disconnesso dalla partita\n",p->name);
+		printf("%s si è disconnesso dalla partita\n",opponent->name);
 	}
-
-	remove_peer(id);
 }

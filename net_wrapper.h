@@ -1,5 +1,5 @@
-#ifndef TCP_H
-#define TCP_H	
+#ifndef NET_WRAPPER_H
+#define NET_WRAPPER_H	
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,13 +13,22 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#define INIT_MY_BUFFER {NULL, 0L};
+
+typedef struct my_buffer_t
+{
+	char* buf;
+	uint32_t size;
+}my_buffer;
+
+
 typedef struct ConnectionTCP_t
 {
 	int socket;
 	struct sockaddr_in cl_addr; 
 }ConnectionTCP;
 
-int my_errno;
+
 
 /**Richiede numero di porta little endian**/
 int open_serverTCP( uint16_t port );
@@ -33,11 +42,15 @@ int accept_serverTCP( int sock_serv, ConnectionTCP *conn );
 * depositare il messaggio. Il buffer verra' allocato nel
 * puntatore passato come parametro.
 */
-int recv_data( int sockt, char** buf );
+//int recv_data( int sockt, char** buf );
+
+int recv_data( int sockt, my_buffer* my_buff );
 
 /*l'ultimo parametro dice quanti byte inviare*/
 int send_data( int sockt, char* buf, uint32_t buf_len );
 
 /*int recv_command();*/
 int close_connection( ConnectionTCP *conn );
+
+void clear_my_buffer( my_buffer *myb );
 #endif

@@ -5,6 +5,10 @@
 
 
 /***Variabili globali***/
+my_buffer my_buf = INIT_MY_BUFFER;
+const time_t n_seconds = 60;
+
+
 int sock_serv_TCP;
 int my_id = -1;
 uint16_t my_udp_port;
@@ -24,6 +28,7 @@ unsigned char arranging_ships = 0;
 unsigned char your_turn = 1;
 /*************************************/
 
+void quit(int sig);
 void help();
 void register_to_serv( int sd );
 void execute_cmd(char* str, int sockt);
@@ -31,14 +36,14 @@ void remote_req(int sockt, char* buf);
 void arrange_my_ship();
 void disconnect();
 void switch_mode();
-void i_am_free(int sock);
 
 int main( int argc, char* argv[] )
 {
 	int sd, ret;
 	struct sockaddr_in serv_addr;
+
 	char buf[DIM_BUFF];
-	char* buf_rec = NULL;
+	struct timeval timeout = {10,0};
 
 	fd_set master; /*set principale*/
 	fd_set read_fds; /*set di lettura*/
@@ -83,7 +88,7 @@ int main( int argc, char* argv[] )
 		printf("Connesso correttamente al server %s\n",argv[1]);
 
 	/*assegno handler al segnale generato da CTRL+C*/
-	signal(SIGINT,disconnect);
+	signal(SIGINT,quit);
 
 	socket_udp = socket(AF_INET,SOCK_DGRAM,0);
 	if( socket_udp == -1 ) {
@@ -106,26 +111,36 @@ int main( int argc, char* argv[] )
 		printf("%c",mode);	
 		fflush(stdout);	
 		read_fds = master;
-		select( max+1, &read_fds, NULL, NULL, NULL);
+		if( mode == '#')
+			select( max+1, &read_fds, NULL, NULL, &timeout);
+		else
+			select( max+1, &read_fds, NULL, NULL, NULL);
 
 		if( FD_ISSET(sd, &read_fds) )
 		{
 			printf("\b");
-			ret = recv_data(sd,&buf_rec);
+			ret = recv_data(sd, &my_buf);
 			if( ret == -1 )	{
 				printf("Il server ha chiuso la connessione\n");
 				close(sd);
 				exit(1);
 			}
-			remote_req(sd, buf_rec);
+			remote_req(sd, my_buf.buf);
+			timeout.tv_sec = n_seconds;
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
 			//printf("mess udp\n");
-			recv_data(socket_udp,&buf_rec);
-			remote_req(socket_udp, buf_rec);
-		} else {
+			recv_data(socket_udp,&my_buf);
+			remote_req(socket_udp, my_buf.buf);
+			timeout.tv_sec = n_seconds;
+		} else if( FD_ISSET(STDIN_FILENO,&read_fds) ) {
 			/*Cattura tutta la linea fino al carattere a capo*/
 			scanf(" %[^\n]s",buf);
 			execute_cmd(buf,sd);
+			timeout.tv_sec = n_seconds;
+		} else {
+			printf("\bTempo scaduto.\n");
+			disconnect();
+			//timeout.tv_sec = n_seconds;
 		}
 	}
 
@@ -146,22 +161,21 @@ void help()
 		printf("Sono disponibili i seguenti comandi:\n");
 		printf("   !help --> mostra l'elenco dei comandi disponibili\n");
 		printf("   !shot riga colonna --> spara alle coordinate indicate\n");
-		printf("   !show --> mostra le griglie\n");
-		printf("   !quit --> disconnette il client dal server\n\n");
+		printf("   !show --> mostra le griglie di gioco\n");
+		printf("   !disconnect --> disconnette il client dall'attuale partita\n\n");
 	}
 }
 
 void register_to_serv( int sd )
 {
 	char buf[DIM_BUFF];
-	char* buf_rec = NULL;
 	
 	reg_set_name r_name = INIT_REG_SET_NAME;
 	reg_set_udp_port r_udp = INIT_REG_SET_UDP_PORT;
 
-	int ret = recv_data(sd, &buf_rec);
+	int ret = recv_data(sd, &my_buf);
 	if( ret ) {
-		sscanf(buf_rec, "WELCOME YOUR ID IS %d", &my_id);
+		sscanf(my_buf.buf, "WELCOME YOUR ID IS %d", &my_id);
 		printf("MY ID IS: %d \n",my_id);
 	}
 	else
@@ -180,11 +194,11 @@ void register_to_serv( int sd )
 
 		r_name.peer_id = my_id;
 		ret = send_data(sd, (char*)&r_name, sizeof(r_name));
-		ret = recv_data(sd, &buf_rec); 
+		ret = recv_data(sd, &my_buf); 
 
 		/*si puo' togliere da qui forse*/
 		message_type m;
-		memcpy(&m, buf_rec, sizeof(m));
+		memcpy(&m, my_buf.buf, sizeof(m));
 
 		if( m == NAME_ACCEPTED ){
 			printf("Nome accettato\n");
@@ -193,7 +207,7 @@ void register_to_serv( int sd )
 			printf("Il nome e' gia' usato da un altro peer. \n");
 		} else {
 			printf("Messaggio non riconosciuto.\n");
-			disconnect();
+			quit(0);
 		}
 	}
 
@@ -217,15 +231,12 @@ _set_udp_port:
 	r_udp.udp_port = my_udp_port;
 	//sprintf(buf, "MY PORT IS %hu",my_udp_port);
 	send_data( sd, (char*)&r_udp, sizeof(r_udp) );
-
-	free(buf_rec);
 }
 
 void execute_cmd( char* str, int sockt )
 {
 	char cmd[10];
 	char higher_str[65];
-	char* buf_rec = NULL;
 	req_conn_peer re;
 	char col;
 	char row;
@@ -250,8 +261,8 @@ void execute_cmd( char* str, int sockt )
 		sm.t = LIST_OF_PEERS;
 		sm.peer_id = my_id;
 		send_data(sockt,(char*)&sm,sizeof(sm));
-		recv_data(sockt,&buf_rec);
-		printf("Peer connessi al server:\n%s",buf_rec);
+		recv_data(sockt,&my_buf);
+		printf("Peer connessi al server:\n%s",my_buf.buf);
 	} else if( strcmp(cmd, "!connect") == 0 ) {
 		#ifdef DEBUG
 		printf("mi connetto a %s\n",higher_str);
@@ -292,8 +303,6 @@ void execute_cmd( char* str, int sockt )
 			your_turn = 0;
 	}
 
-	if( buf_rec )
-		free(buf_rec);
 	//printf("%c",mode);
 	//fflush(stdout);
 }
@@ -387,7 +396,7 @@ void remote_req( int sockt, char* buf )
 
 		if( ret == 2 ){
 			printf("Hai perso! :( \n");
-			i_am_free(sock_serv_TCP);			
+			disconnect();			
 		}
 
 		your_turn = 1;
@@ -410,9 +419,9 @@ void remote_req( int sockt, char* buf )
 		show_grind(&my_grind,&opposite_grind);
 	} else if ( m_type == YOU_WON ){
 		printf("\bHai vinto la partita! :D\n");
-		i_am_free(sock_serv_TCP);
+		disconnect();
 	} else if( m_type == OPPONENT_DISCONNECTED ){
-		printf("\bIl tuo avversario si è disconnesso.\n");
+		printf("\bIl tuo avversario si è disconnesso. Hai vinto la partita :D!\n");
 		mode = '>'; arranging_ships=0;		
 	} else {
 		printf("Messaggio non riconosciuto\n");
@@ -450,28 +459,32 @@ void arrange_my_ship(char* str)
 	printf("debug=%d\n",x);
 	#endif */
 	show_grind(&my_grind,NULL);
-//	}
-//1	printf("--NAVI POSIZIONATE\n");
 }
 
-void i_am_free( int sock )
+void disconnect()
 {
-	simple_mess sm = { I_AM_FREE, my_id };
-	opposite_ready = 0;
-	opposite_name[0] = '\0';
-	send_data(sock, (char*)&sm, sizeof(sm));
-	switch_mode();
-}
-
-void disconnect( int sig )
-{
-	#ifdef DEBUG
-	printf("disconnessione\n");
-	#endif
 	simple_mess m;
-	m.t = DISCONNECT;
+	m.t = DISCONNECT_GAME;
 	m.peer_id = my_id;
 	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
+
+	init_game( &my_grind, 1, socket_udp );
+	init_game( &opposite_grind, 0, socket_udp );
+	
+	opposite_ready = 0;
+	opposite_name[0] = '\0';
+	arranging_ships = 0;
+
+	if( mode == '#'){
+		printf("Disconnessione avvenuta con successo: ti sei arreso\n");
+		mode = '>';
+	}
+}
+
+void quit( int sig )
+{
+	disconnect();
+	free(my_buf.buf);
 	close(sock_serv_TCP);
 	printf("\n\n");
 	exit(0);
