@@ -412,6 +412,8 @@ void remote_req( int sockt, char* buf )
 void switch_mode(){
 	if( mode == '>' ) mode = '#';
 	else mode = '>';
+	init_game( &my_grind, 1, socket_udp );
+	init_game( &opposite_grind, 0, socket_udp );
 }
 
 void print_list_of_peers( char* buf )
@@ -513,8 +515,8 @@ void disconnect()
 	convert_to_network_order(&m);
 	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
 
-	init_game( &my_grind, 1, socket_udp );
-	init_game( &opposite_grind, 0, socket_udp );
+	/*init_game( &my_grind, 1, socket_udp );
+	init_game( &opposite_grind, 0, socket_udp );*/
 	
 	opposite_ready = 0;
 	opposite_name[0] = '\0';
