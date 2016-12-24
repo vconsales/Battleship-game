@@ -48,7 +48,7 @@ void print_bitmap()
 	printf("%d %d %d \n",b_LOCAL, b_HIT, b_POS);
 }
 
-void show_grind( battle_game *bg_l, battle_game *bg_r )
+void show_grinds( battle_game *bg_l, battle_game *bg_r )
 {
 	short i, j;
 
@@ -232,6 +232,8 @@ int shot_ship_remote( coordinate *co, battle_game *bg )
 	#ifdef DEBUG
 	printf("col:%c row:%c\n",co->x,co->y);
 	#endif
+
+	convert_to_network_order(&sm);
 	send_data(bg->sock_udp,(char*)&sm,sizeof(sm));
 
 	return 0;
@@ -296,6 +298,7 @@ static
 void send_ship_arranged( int sock_udp )
 {
 	message_type mt = SHIP_ARRANGED;
+	convert_to_network_order(&mt);
 	send_data(sock_udp, (char*)&mt, sizeof(mt));
 }
 
@@ -303,6 +306,7 @@ static
 void send_you_won( int sock_udp )
 {
 	message_type mt = YOU_WON;
+	convert_to_network_order(&mt);
 	send_data(sock_udp, (char*)&mt, sizeof(mt));
 }
 
@@ -310,7 +314,10 @@ static
 void send_ship_hit( int sock_udp, char col, char row )
 {
 	shot_mess sm = INIT_SHIP_HIT(col,row);
-	//printf("mando HIT %c %c",col,row);
+	#ifdef DEBUG
+	printf("mando HIT %c %c",col,row);
+	#endif
+	convert_to_network_order(&sm);
 	send_data(sock_udp,(char*)&sm,sizeof(sm));
 }
 
@@ -318,6 +325,9 @@ static
 void send_ship_miss( int sock_udp, char col, char row )
 {
 	shot_mess sm = INIT_SHIP_MISS(col,row);
-	//printf("mando MISS %c %c",col,row);
+	#ifdef DEBUG
+	printf("mando MISS %c %c\n",col,row);
+	#endif
+	convert_to_network_order(&sm);
 	send_data(sock_udp,(char*)&sm,sizeof(sm));
 }

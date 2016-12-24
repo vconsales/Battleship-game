@@ -31,11 +31,15 @@ unsigned char your_turn = 1;
 void quit(int sig);
 void help();
 void register_to_serv( int sd );
-void execute_cmd(char* str, int sockt);
-void remote_req(int sockt, char* buf);
+void execute_cmd( char* str );
+void remote_req( int sockt, char* buf );
 void arrange_my_ship();
 void disconnect();
 void switch_mode();
+void print_list_of_peers( char* buf );
+void shot_cmd( char* str );
+void connect_cmd( char* str );
+void who_cmd();
 
 int main( int argc, char* argv[] )
 {
@@ -125,17 +129,20 @@ int main( int argc, char* argv[] )
 				close(sd);
 				exit(1);
 			}
+
+			convert_to_host_order(my_buf.buf);
 			remote_req(sd, my_buf.buf);
 			timeout.tv_sec = n_seconds;
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
 			//printf("mess udp\n");
 			recv_data(socket_udp,&my_buf);
+			convert_to_host_order(my_buf.buf);
 			remote_req(socket_udp, my_buf.buf);
 			timeout.tv_sec = n_seconds;
 		} else if( FD_ISSET(STDIN_FILENO,&read_fds) ) {
 			/*Cattura tutta la linea fino al carattere a capo*/
 			scanf(" %[^\n]s",buf);
-			execute_cmd(buf,sd);
+			execute_cmd(buf);
 			timeout.tv_sec = n_seconds;
 		} else {
 			printf("\bTempo scaduto.\n");
@@ -175,26 +182,39 @@ void register_to_serv( int sd )
 
 	int ret = recv_data(sd, &my_buf);
 	if( ret ) {
-		sscanf(my_buf.buf, "WELCOME YOUR ID IS %d", &my_id);
+		convert_to_host_order(my_buf.buf);
+		//sscanf(my_buf.buf, "WELCOME YOUR ID IS %d", &my_id);
+		if( ((simple_mess*)my_buf.buf)->t != WELCOME_MESS )
+			quit(1);
+
+		my_id = ((simple_mess*)my_buf.buf)->peer_id;
 		printf("MY ID IS: %d \n",my_id);
 	}
 	else
 		disconnect();
 	
+	r_name.peer_id = my_id;
+	convert_to_network_order(&r_name);
+
 	for(;;) 
 	{
 		printf(">Inserisci il tuo nome: ");
 		scanf("%s", buf);
-		if( strlen(buf) > 63 )
+		if( strlen(buf) > 63 ){
 			printf("Il tuo nome e' troppo lungo e verra' troncato");
-		buf[63] = '\0';
-
-		//r_name.t = htonl(PEER_SETS_NAME);
+			buf[63] = '\0';
+		}
+		strcpy(my_name,buf);
 		strcpy(r_name.name,buf);
-
-		r_name.peer_id = my_id;
 		ret = send_data(sd, (char*)&r_name, sizeof(r_name));
+		if( ret == -1 )
+			quit(1);
+
 		ret = recv_data(sd, &my_buf); 
+		if( ret == -1 )
+			quit(1);
+
+		convert_to_host_order(my_buf.buf);
 
 		/*si puo' togliere da qui forse*/
 		message_type m;
@@ -205,9 +225,10 @@ void register_to_serv( int sd )
 			break;
 		} else if ( m == NAME_REFUSED ) {
 			printf("Il nome e' gia' usato da un altro peer. \n");
+			buf[0] = '\0';
 		} else {
 			printf("Messaggio non riconosciuto.\n");
-			quit(0);
+			quit(1);
 		}
 	}
 
@@ -230,19 +251,14 @@ _set_udp_port:
 	r_udp.peer_id = my_id;
 	r_udp.udp_port = my_udp_port;
 	//sprintf(buf, "MY PORT IS %hu",my_udp_port);
+	convert_to_network_order(&r_udp);
 	send_data( sd, (char*)&r_udp, sizeof(r_udp) );
 }
 
-void execute_cmd( char* str, int sockt )
+void execute_cmd( char* str )
 {
 	char cmd[10];
 	char higher_str[65];
-	req_conn_peer re;
-	char col;
-	char row;
-	int ret;
-
-	//printf("execute_cmd...\n");
 
 	if( strlen(str) > 74 )
 		return;
@@ -253,69 +269,29 @@ void execute_cmd( char* str, int sockt )
 	if( strcmp(cmd,"!help") == 0 ) {
 		help();
 	} else if ( strcmp(str, "!quit") == 0 ){
+		quit(0);
+	} else if ( strcmp(str, "!disconnect") == 0 ) {
 		disconnect();
 	} else if ( arranging_ships ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
-		simple_mess sm;
-		sm.t = LIST_OF_PEERS;
-		sm.peer_id = my_id;
-		send_data(sockt,(char*)&sm,sizeof(sm));
-		recv_data(sockt,&my_buf);
-		printf("Peer connessi al server:\n%s",my_buf.buf);
+		who_cmd();
 	} else if( strcmp(cmd, "!connect") == 0 ) {
-		#ifdef DEBUG
-		printf("mi connetto a %s\n",higher_str);
-		#endif
-		if( strcmp(higher_str,my_name) == 0 ){
-			printf("Non puoi giocare con te stesso!\n");
-			return;
-		}
-
-		re.t = REQ_CONN_TO_PEER;
-		re.peer_id = my_id;
-		strcpy(re.peer_name,higher_str);
-		send_data(sockt,(char*)&re,sizeof(re));
+		connect_cmd(higher_str);
 	} else if( strcmp(cmd,"!shot")==0 ) {
-		coordinate co;
-		if( !opposite_ready ){
-			printf("L'avversario non e' ancora pronto.\n");
-			return;
-		}
-
-		if( !your_turn ){
-			printf("Non è il tuo turno.\n");
-			return;
-		}
-
-		sscanf(higher_str," %c %c",&col,&row);
-		co.x = col;
-		co.y = row;
-
-		ret = shot_ship(&co, &opposite_grind);
-		if( ret == -1 )
-			printf("coordinate errate.\n");
-
-		if( ret == -2 )
-			printf("colpo gia' sparato.\n");
-
-		if( ret >= 0 )
-			your_turn = 0;
-	}
-
-	//printf("%c",mode);
-	//fflush(stdout);
+		shot_cmd(higher_str);
+	} else 
+		printf("\bComando non riconosciuto.\n");
 }
 
 void remote_req( int sockt, char* buf )
 {
-	message_type m_type = GENERIC_ERR;
+	message_type m_type;
 	response_conn_to_peer re;
 	int ret;
 	char c;
 	memcpy((void*)&m_type, (void*)buf, sizeof(m_type));
-//	m_type = m_type; //mettere una convert di libreria
-
+	
 	if( m_type == REQ_CONN_FROM_PEER ){
 		/*il server invia erronamente un messaggio
 		 *di connessione accettata mentre si e' in
@@ -339,7 +315,7 @@ void remote_req( int sockt, char* buf )
 		}
 		re.opponent_id = ((req_conn_peer*)buf)->peer_id;
 		re.peer_id = my_id;
-		//convert_to_network_order(&re);
+		convert_to_network_order(&re);
 		send_data(sockt,(char*)&re,sizeof(re));	
 
 		if( c=='S' || c=='s'){
@@ -384,6 +360,8 @@ void remote_req( int sockt, char* buf )
 		printf("Il peer indicato e' gia' occupato in un'altra partita.\n");
 	} else if ( m_type == PEER_DOES_NOT_EXIST ) {
 		printf("Il peer indicato non esiste\n");
+	} else if ( m_type == RES_LIST_OF_PEERS ) {
+		print_list_of_peers(my_buf.buf);
 	} else if ( m_type == SHOT_SHIP ) {
 		coordinate co;
 		co.x = ((shot_mess*)buf)->col;
@@ -392,7 +370,7 @@ void remote_req( int sockt, char* buf )
 		ret = shot_ship(&co,&my_grind);
 		/*gestire errori in modo più pulito anche 
 		  aggiungendo nuovi messaggi*/
-		show_grind(&my_grind, &opposite_grind);
+		show_grinds(&my_grind, &opposite_grind);
 
 		if( ret == 2 ){
 			printf("Hai perso! :( \n");
@@ -409,20 +387,23 @@ void remote_req( int sockt, char* buf )
 		co.y = ((shot_mess*)buf)->row;
 		set_hit(&co,&opposite_grind);
 		printf("\bcolpito!\n");
-		show_grind(&my_grind,&opposite_grind);
+		show_grinds(&my_grind,&opposite_grind);
 	} else if ( m_type == SHIP_MISS ) {
 		coordinate co;
 		co.x = ((shot_mess*)buf)->col;
 		co.y = ((shot_mess*)buf)->row;
 		set_miss(&co,&opposite_grind);
 		printf("\bbuco nell'acqua.\n");
-		show_grind(&my_grind,&opposite_grind);
+		show_grinds(&my_grind,&opposite_grind);
 	} else if ( m_type == YOU_WON ){
 		printf("\bHai vinto la partita! :D\n");
 		disconnect();
 	} else if( m_type == OPPONENT_DISCONNECTED ){
 		printf("\bIl tuo avversario si è disconnesso. Hai vinto la partita :D!\n");
 		mode = '>'; arranging_ships=0;		
+	} else if( m_type == SERVER_QUIT ) {
+		printf("Il server è stato chiuso\n");
+		quit(0);
 	} else {
 		printf("Messaggio non riconosciuto\n");
 	}
@@ -431,6 +412,68 @@ void remote_req( int sockt, char* buf )
 void switch_mode(){
 	if( mode == '>' ) mode = '#';
 	else mode = '>';
+}
+
+void print_list_of_peers( char* buf )
+{
+	res_list_peers *re = (res_list_peers*)buf;
+	printf("\bPeer connessi al server:\n%s",re->list);
+}
+
+void who_cmd()
+{
+	simple_mess sm;
+	sm.t = REQ_LIST_OF_PEERS;
+	sm.peer_id = my_id;
+
+	convert_to_network_order(&sm);
+	send_data(sock_serv_TCP,(char*)&sm,sizeof(sm));
+}
+
+void connect_cmd( char* str )
+{
+	req_conn_peer re;
+	if( strcmp(str,my_name) == 0 ){
+		printf("Non puoi giocare con te stesso!\n");
+		return;
+	}
+	re.t = REQ_CONN_TO_PEER;
+	re.peer_id = my_id;
+	strcpy(re.peer_name,str);
+
+	convert_to_network_order(&re);
+	send_data(sock_serv_TCP,(char*)&re,sizeof(re));
+}
+
+void shot_cmd( char* str )
+{
+	int ret;
+	char col;
+	char row;
+	coordinate co;
+	if( !opposite_ready ){
+		printf("L'avversario non e' ancora pronto.\n");
+		return;
+	}
+
+	if( !your_turn ){
+		printf("Non è il tuo turno.\n");
+		return;
+	}
+
+	sscanf(str," %c %c",&col,&row);
+	co.x = col;
+	co.y = row;
+
+	ret = shot_ship(&co, &opposite_grind);
+	if( ret == -1 )
+		printf("coordinate errate.\n");
+
+	if( ret == -2 )
+		printf("colpo gia' sparato.\n");
+
+	if( ret >= 0 )
+		your_turn = 0;
 }
 
 void arrange_my_ship(char* str)
@@ -458,7 +501,7 @@ void arrange_my_ship(char* str)
 	printf("%c %c\n",col,row);
 	printf("debug=%d\n",x);
 	#endif */
-	show_grind(&my_grind,NULL);
+	show_grinds(&my_grind,NULL);
 }
 
 void disconnect()
@@ -466,6 +509,8 @@ void disconnect()
 	simple_mess m;
 	m.t = DISCONNECT_GAME;
 	m.peer_id = my_id;
+
+	convert_to_network_order(&m);
 	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
 
 	init_game( &my_grind, 1, socket_udp );

@@ -1,6 +1,7 @@
 #include "net_wrapper.h"
 #include "peer_manager.h"
 #include "messages.h"
+#include <signal.h>
 
 /***Variabili globali***/
 int sock_serv;
@@ -13,6 +14,8 @@ int send_welcome( int sockt, int id );
 int send_list_of_peer( int sockt );
 int connect_request( int sender_id, char* opponent_name );
 void peer_quit( int id );
+void set_peer_free( int id );
+void quit( int sig );
 
 int main( int argc, char* argv[] )
 {
@@ -37,10 +40,9 @@ int main( int argc, char* argv[] )
 	}
 
 	/*aggiungo handler al segnale generato da ctrl+c*/
-	//signal(SIGINT,close_serverTCP);
+	signal(SIGINT,quit);
 
 	requests_manager();
-
 	close(sock_serv);
 	return 0;
 }
@@ -97,6 +99,7 @@ void requests_manager()
 						 *il protocollo scelto. Se necessario vengono
 						 *aggiornate le strutture dati associate ai peer*/
 						//printf("Ricevuto messaggio\n");
+						convert_to_host_order(my_buf.buf);
 						ret = analyze_message(i, my_buf.buf);
 						if( ret == -1 ){
 							FD_CLR(i,&master);
@@ -148,15 +151,17 @@ int analyze_message( int sockt, char* buf )
 		if( p->state != UNSET )
 			return -1;
 
-		if( get_index_peer_name(((reg_set_name*)buf)->name) != -1 )
+		if( get_index_peer_name(((reg_set_name*)buf)->name) == -1 )
 		{
-			m = NAME_REFUSED;
-			send_data(sockt, (char*)&m, sizeof(m));
-		} else {
 			m = NAME_ACCEPTED;
 			strcpy(p->name, ((reg_set_name*)buf)->name);
+			convert_to_network_order(&m);
 			send_data(sockt, (char*)&m, sizeof(m));
 			p->state = NAME_SET;
+		} else {
+			m = NAME_REFUSED;
+			convert_to_network_order(&m);
+			send_data(sockt, (char*)&m, sizeof(m));
 		}
 	} else if( m == PEER_SETS_UDP_PORT) {
 		if( p->state != NAME_SET )
@@ -165,7 +170,7 @@ int analyze_message( int sockt, char* buf )
 	   	p->state = PEER_FREE;
 	   	p->udp_port = ((reg_set_udp_port*)buf)->udp_port;
 	   	printf("PEER %s riceve su porta UDP %hu \n",p->name,ntohs(p->udp_port));
-	} else if ( m == LIST_OF_PEERS ) {
+	} else if ( m == REQ_LIST_OF_PEERS ) {
 		#ifdef DEBUG
 		printf("Richiesta lista di peer\n");
 		#endif
@@ -177,6 +182,7 @@ int analyze_message( int sockt, char* buf )
 		printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
 		connect_request(index,((req_conn_peer*)buf)->peer_name);
 	} else if ( m == ACCEPT_CONN_FROM_PEER ) {
+		printf("%s ha accettato la connessione\n",p->name);
 		re.t = CONN_TO_PEER_ACCEPTED;		
 		/* Ricopio i dati del peer che ha accettato nel messaggio di risposta*/
 		re.peer_id = index;
@@ -187,7 +193,9 @@ int analyze_message( int sockt, char* buf )
 
 		int opponent_id = ((response_conn_to_peer*)buf)->opponent_id;
 		/*mando il messaggio all'avversario*/
-		p = get_peer(opponent_id); 
+		p = get_peer(opponent_id);
+
+		convert_to_network_order(&re); 
 		send_data(p->conn.socket,(char*)&re,sizeof(re));
 
 		p->state = PEER_PLAYING;
@@ -197,9 +205,11 @@ int analyze_message( int sockt, char* buf )
 		p->state = PEER_PLAYING;
 		p->opponent_id = opponent_id;
 	} else if ( m == REFUSE_CONN_FROM_PEER ) {
-		re.t = CONN_TO_PEER_REFUSED;
+		m = CONN_TO_PEER_REFUSED;
 		p = get_peer( ((response_conn_to_peer*)buf)->opponent_id );
-		send_data(p->conn.socket,(char*)&re,sizeof(re));
+
+		convert_to_network_order(&m);
+		send_data(p->conn.socket,(char*)&m,sizeof(re));
 	} else {
 		return -2;
 	}
@@ -210,28 +220,39 @@ int analyze_message( int sockt, char* buf )
 int send_welcome( int sockt, int id )
 {
 	/*invia il messaggio di benvenuto con l'id*/
-	char buf[100];
-	int res;
-	sprintf(buf,"WELCOME YOUR ID IS %d",id);
+	simple_mess sm = INIT_WELCOME_MESS(id);
+	//int res;
+	//sprintf(buf,"WELCOME YOUR ID IS %d",id);
 	//printf("Mando: %s\n",buf);
-	res = send_data(sockt, buf, 100);		
-	// int n = send( sd, buf, 30, 0 );
+	convert_to_network_order(&sm);
+	int res = send_data(sockt, (char*)&sm, sizeof(sm));		
 	return res;
 }
 
 int send_list_of_peer( int sockt )
 {
 	char* list = NULL;
-	int n = get_peers_name(&list);
-	
-	if( n < 0)
-		return -1; 
-	
-	//printf("dim=%d --%s\n",n,list);
-	
-	if( n > 0)
-		n = send_data(sockt, list, n);
+	char* message_res = NULL;
+	size_t dim_mess;
 
+	/*devo preparare il messaggio di risposta
+	  del tipo res_list_peers */
+
+	int n = get_peers_name(&list);
+	if( n < 0)
+		return -1;
+//	printf("dentro list ci sono %d bytes\n",n);
+	dim_mess = sizeof(message_type)+4+n;
+
+	message_res = (char*)malloc(dim_mess); 
+	((res_list_peers*)message_res)->t = RES_LIST_OF_PEERS;
+	((res_list_peers*)message_res)->size = n;
+	memcpy(&((res_list_peers*)message_res)->list,list,n);
+	
+	convert_to_network_order(message_res);
+	send_data(sockt, message_res, dim_mess);
+	
+	free(message_res);
 	return n;
 }
 
@@ -239,27 +260,31 @@ int connect_request(int sender_id, char* opponent_name )
 {
 	des_peer* p_sender = get_peer(sender_id);
 	int index = get_index_peer_name(opponent_name); 
-	req_conn_peer r;
+	req_conn_peer req;
+	message_type err;
 
 	if( index == -1 ) {
-		r.t = PEER_DOES_NOT_EXIST;
-		send_data(p_sender->conn.socket,(char*)&r,sizeof(r));
+		err = PEER_DOES_NOT_EXIST;
+		convert_to_network_order(&err);
+		send_data(p_sender->conn.socket,(char*)&err,sizeof(err));
 		return -1;
 	}
 
-	if( p_sender->state == PEER_PLAYING ) {
-		r.t = PEER_IS_NOT_FREE;
-		send_data(p_sender->conn.socket,(char*)&r,sizeof(r));
+	if( get_peer(index)->state == PEER_PLAYING ) {
+		err = PEER_IS_NOT_FREE;
+		convert_to_network_order(&err);
+		send_data(p_sender->conn.socket,(char*)&err,sizeof(err));
 		return -2;
 	}
 
-	r.t = REQ_CONN_FROM_PEER;
-	r.peer_id = sender_id;
-	strcpy(r.peer_name, p_sender->name);
-	memcpy((void*)&r.peer_addr,(void*)&(p_sender->conn.cl_addr),sizeof(r.peer_addr));
-	r.peer_addr.sin_port = p_sender->udp_port;
+	req.t = REQ_CONN_FROM_PEER;
+	req.peer_id = sender_id;
+	strcpy(req.peer_name, p_sender->name);
+	memcpy(&req.peer_addr,&(p_sender->conn.cl_addr),sizeof(req.peer_addr));
+	req.peer_addr.sin_port = p_sender->udp_port;
 
-	send_data(get_peer(index)->conn.socket,(char*)&r,sizeof(r));
+	convert_to_network_order(&req);
+	send_data(get_peer(index)->conn.socket,(char*)&req,sizeof(req));
 
 	return 0;
 }
@@ -270,9 +295,10 @@ void peer_quit( int id )
 	if( !p ) 
 		return;
 
-	printf("Il peer %s si è disconnesso dal server\n",p->name);
 	set_peer_free(id);
-	remove_peer(id);
+	printf("Il peer %s si è disconnesso dal server\n",p->name);
+	if( !remove_peer(id) )
+		printf("Errore nella rimozione del peer con id %d\n",id);
 }
 
 void set_peer_free( int id )
@@ -287,10 +313,33 @@ void set_peer_free( int id )
 	{
 		m = OPPONENT_DISCONNECTED;
 		opponent = get_peer(p->opponent_id);
+
+		convert_to_network_order(&m);
 		send_data(opponent->conn.socket,(char*)&m,sizeof(m));
+
 		opponent->state = PEER_FREE;
 		p->state = PEER_FREE;
 		printf("%s si è disconnesso dalla partita\n",p->name);
 		printf("%s si è disconnesso dalla partita\n",opponent->name);
 	}
+}
+
+void quit( int sig )
+{
+	int id=0, cont=0, n=get_n_peers();
+	des_peer *pe = NULL;
+	message_type m = SERVER_QUIT;
+	convert_to_network_order(&m);
+
+	for( ; cont<n; id++)
+	{
+		if( is_valid_id(id) )
+		{
+			pe = get_peer(id);
+			send_data(pe->conn.socket, (char*)&m, sizeof(m));
+			close(pe->conn.socket);
+			cont++;
+		}
+	}
+	exit(sig);
 }

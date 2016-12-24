@@ -1,16 +1,21 @@
 #include "peer_manager.h"
 
 /******variabili e metodi privati del gestore***/
-static int last_pos = -1; //ultima posizione usata
-static char position_free = 0;
-static unsigned int n_peers = 0;
-static unsigned int max_peers = 10;
+static int last_pos; //ultima posizione usata
+static char position_free;
+static unsigned int n_peers;
+static unsigned int max_peers;
 static void alloc_peer( des_peer** p );
 static des_peer** peers;
 /***********************************************/
 
 int init_peer_manager()
 {
+	max_peers = 10;
+	n_peers = 0;
+	position_free = 0;
+	last_pos = -1;
+
 	size_t size_peer = sizeof(des_peer*) * max_peers;
 	peers = (des_peer**)malloc(size_peer);
 	if( peers == NULL )
@@ -58,8 +63,15 @@ int get_index_peer_sock( int sockt )
 int get_index_peer_name( char* name )
 {
 	int i;
+	if( n_peers == 0 )
+		return -1;
+
 	for( i=0; i<=last_pos; i++)
 	{
+		#ifdef DEBUG
+		printf("peers[%d]=%ld\n",i,(void*)peers[i]);
+		#endif
+
 		if( (peers[i] != NULL) && (strcmp(peers[i]->name,name)==0) )
 			return i;
 	}
@@ -104,7 +116,9 @@ int add_peer( )
 		{
 			if( peers[i] == NULL )
 			{
+				#ifdef DEBUG
 				printf("--aggiungo peer in pos. %d\n",i);
+				#endif
 				alloc_peer(&peers[i]);
 				return i;
 			}
@@ -116,6 +130,7 @@ int add_peer( )
 	#ifdef DEBUG
 	printf("--aggiungo peer in pos. %d\n",last_pos);
 	#endif
+
 	alloc_peer(&peers[last_pos]);
 	return last_pos;
 }
@@ -153,9 +168,9 @@ int remove_peer_having_sock( int sockt )
 	return res;
 }
 
-int get_max_peers_n()
+int get_n_peers()
 {
-	return max_peers;
+	return n_peers;
 }
 
 int get_peers_name( char** list )
@@ -217,6 +232,12 @@ int remove_peer( int index )
 	if( !is_valid_id(index) )
 		return 0;
 	
+	#ifdef DEBUG
+	printf("rimuovo peer da indice %d\n",index);
+	#endif
+
+	/*leggi nota alla fine*/
+	memset(peers[index],0,sizeof(des_peer)); 
 	free(peers[index]);
 	peers[index] = NULL;
 	n_peers--;
@@ -227,5 +248,20 @@ int remove_peer( int index )
 	else
 		position_free = 1; //si e' liberato un posto in mezzo
 
+	#ifdef DEBUG
+	printf("last_pos:%d position_free:%d n_peers:%d\n",last_pos,position_free,n_peers);
+	#endif
+
 	return 1;
 }
+
+
+/* Nota
+Bug riscontrato quando un client si disconnette e poi si ricollega subito 
+ottenendo lo stesso id. Se il client inserisce lo stesso nome che aveva
+prima riceve dal server il messaggio NAME_REFUSED. E' un messaggio che non
+dovrebbe ricevere perchè non esiste alcun peer con quel nome. Ciò è dovuto 
+al fatto che la malloc rialloca la memoria per il des_peer nelle stesse 
+locazioni e pertato si provoca il conflitto. Per evitare ogni problema 
+prima di fare free(peer[index]) azzero l'area di memoria destinata al 
+descrittore di peer.*/

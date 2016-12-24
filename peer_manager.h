@@ -30,8 +30,7 @@ int get_index_peer_sock( int sockt );
 int add_peer();
 int remove_peer( int index );
 int remove_peer_having_sock( int sockt );
-int get_max_peers_n();
-void set_peer_free( int id );
+int get_n_peers();
 
 /*se l'id corrisponde ad un peer registrato ritorna 1 altrimenti 0*/
 int is_valid_id( int id );

@@ -1,41 +1,47 @@
 #ifndef MESSAGES_H
 #define MESSAGES_H
+#include <arpa/inet.h>
 
-typedef enum { 
-	WELCOME_MESS,
+typedef enum 
+{ 
+	WELCOME_MESS, 
 	PEER_SETS_NAME,
 	PEER_SETS_UDP_PORT,
 	NAME_ACCEPTED,
 	NAME_REFUSED,
-	LIST_OF_PEERS,
+	REQ_LIST_OF_PEERS,
+	RES_LIST_OF_PEERS,
 	REQ_CONN_TO_PEER,
 	REQ_CONN_FROM_PEER,
 	PEER_DOES_NOT_EXIST,
+	PEER_IS_NOT_FREE,
 	CONN_TO_PEER_ACCEPTED,
-	CONN_TO_PEER_REFUSED,
+	CONN_TO_PEER_REFUSED, 
 	ACCEPT_CONN_FROM_PEER,
 	REFUSE_CONN_FROM_PEER,
-	PEER_IS_NOT_FREE,
-	GENERIC_ERR,
 	SHIP_ARRANGED,
 	SHOT_SHIP,
 	SHIP_HIT,
 	SHIP_MISS,
 	YOU_WON,
-	I_AM_FREE,
 	DISCONNECT_GAME,
-	OPPONENT_DISCONNECTED/*,
-	PEER_QUIT*/
+	OPPONENT_DISCONNECTED,
+	SERVER_QUIT
 } message_type;
 
+/*
+* - CONN_TO_PEER_REFUSED 
+*   il sever risponde al mittente cha la
+*   sua richiesta di connessione e' stata 
+*   rifiutata.
+*/
+
+#define INIT_WELCOME_MESS(id) {WELCOME_MESS, (id)};
 #define INIT_REG_SET_NAME { PEER_SETS_NAME, -1, {"\0"} }
 #define INIT_REG_SET_UDP_PORT { PEER_SETS_UDP_PORT, 0, 0 }
 #define INIT_REQ_CONN_FROM_PEER { REQ_CONN_FROM_PEER, -1, '\0' }
 #define INIT_SHIP_HIT(col,row) { SHIP_HIT, (col), (row)};
 #define INIT_SHIP_MISS(col,row) { SHIP_MISS, (col), (row)};
-/*#define INIT_ACCEPT_CONN_TO_PEER { ACCEPT_CONN_PEER, -1, -1 }
-#define INIT_REFUSE_CONN_TO_PEER { REFUSE_CONN_PEER, -1, -1 }
-*/
 
 
 typedef struct simple_mess_t
@@ -73,17 +79,7 @@ typedef struct reg_set_udp_port_t
 * - CONN_TO_PEER_ACCEPTED nel caso in cui
 *   il server risponde al mittente che la
 *   sua richiesta di connessione e' stata
-*   accettata.
-* - CONN_TO_PEER_REFUSED nel caso in cui
-*   il sever risponde al mittente cha la
-*   sua richiesta di connessione e' stata 
-*   rifiutata.
-* - PEER_DOESNT_EXIST nel caso in cui il
-*   server non trova un peer con il nome
-*   indicato.
-* - PEER_IS_NOT_FREE nel caso in cui il
-*   peer indicato dal mittente sta gia'
-*   giocando con un altro peer. 	
+*   accettata.	
 * Nel primo caso il campo id identifica il
 * peer mittente mentre il campo name indica
 * il nome del destinatario.
@@ -91,8 +87,6 @@ typedef struct reg_set_udp_port_t
 * addr identificano il peer mittente.
 * Nel terzo caso i campi id,name,udp_port,
 * addr identificano il peer destinatario.
-* Negli altri casi i campi non sono
-* significativi.
 *******************************************/
 typedef struct req_conn_peer_t
 {
@@ -136,15 +130,33 @@ typedef struct shot_mess_t
 	char row;
 }__attribute__((packed)) shot_mess;
 
-/*gestire il network order*/
-/*void convert_to_network_order( void* msg )
+/*******************************************
+* messaggio inviato dal server in risposta
+* al comando !who inviato da un client.
+* t: RES_LIST_OF_PEERS
+* size: quanti bytes contiene list
+* list: vettore di carattere che contiene
+* la lista dei peers connessi.
+********************************************/
+typedef struct res_list_peers_t
 {
+	message_type t;
+	uint32_t size;
+	char list[];
+}__attribute__((packed)) res_list_peers;
 
-}
 
-void convert_to_host_order( void* msg )
-{
+/*******************************************
+* Riconosce automaticamente il messaggio e
+* lo converte nel network order
+********************************************/
+void convert_to_network_order( void* msg );
 
-}**/
+/*******************************************
+* Riconosce automaticamente il messaggio e
+* lo converte nell'host order
+********************************************/
+void convert_to_host_order( void* msg );
+
 
 #endif

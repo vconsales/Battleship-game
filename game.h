@@ -47,33 +47,51 @@ typedef struct coord_t
 	unsigned char y;
 }coordinate;
 
+/*******************************************************
+* Inizializza il gioco passato come argomento.
+* local: 1 se la griglia è locale
+* local: 0 se la griglia è remota
+* sockt: descrittore della socket su cui questo peer
+* riceve i messaggi in game.
+*******************************************************/
 int init_game( battle_game *bg, int local, int sockt );
-int init_local_game( battle_game *bg );
-int init_remote_game( battle_game *bg, int sockt);
-void show_grind( battle_game *bg_l, battle_game *bg_r );
 
-/*******************************************
-* Imposta la nave nelle coordinate indicate
+/* Inizializza la griglia come locale */
+int init_local_game( battle_game *bg );
+
+/* Inizializza la griglia come remota */
+int init_remote_game( battle_game *bg, int sockt);
+
+/*******************************************************
+* Mostra lo stato delle griglie passate come parametri.
+* bg_l verrà mostrata a sinistra
+* bg_r verrà mostrata a destra se è non nulla
+*******************************************************/
+void show_grinds( battle_game *bg_l, battle_game *bg_r );
+
+/*******************************************************
+* Imposta la nave nelle coordinate indicate.
+* Restituisce:
 *  0 se l'operazione e' avvenuta con successo 
 * -1 se le coordinate non sono valide
 * -2 se il posto e' occupato
 * -3 se la griglia non e' locale
 * -4 se tutte le navi sono state posizionate
-********************************************/
+*******************************************************/
 int set_ship( coordinate *c, battle_game *bg );
 
-/******************************************
+/*******************************************************
 * Spara il colpo nelle coordinate indicate.
-* Se la griglia e' remota invia il messaggio
-* su sock_udp.
-* Se la griglia e' locale modifica la griglia
-* ed invia un messaggio di HIT/MISS a sock_udp.
+* Se la griglia e' remota invia il messaggio su sock_udp.
+* Se la griglia e' locale modifica la griglia ed invia 
+* un messaggio di HIT/MISS su sock_udp.
+* Restituisce:
 *  2 tutte le navi sono state affondate
 *  1 se la nave e' stata colpita
 *  0 se il colpo e' andato a vuoto
 * -1 se le coordinate non sono valide
 * -2 se il colpo e' stato gia' sparato 
-***************************************/
+*******************************************************/
 int shot_ship( coordinate* c, battle_game* bg );
 
 /************************************************
@@ -96,6 +114,5 @@ uint8_t is_local( battle_game *bg );
 uint8_t is_remote( battle_game *bg );
 uint8_t get_n_ship_hit( battle_game *bg );
 uint8_t get_n_ship_pos( battle_game *bg );
-void print_bitmap(); /*debug*/
 
 #endif
