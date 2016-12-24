@@ -41,6 +41,14 @@ void shot_cmd( char* str );
 void connect_cmd( char* str );
 void who_cmd();
 
+void stampa_indirizzo( struct sockaddr_in *addr )
+{
+	char str[16];
+	inet_ntop(AF_INET, &addr->sin_addr, str, 16);
+	printf("ip: %s",str);
+	printf("porta: %hu", ntohs(addr->sin_port));
+}
+
 int main( int argc, char* argv[] )
 {
 	int sd, ret;
@@ -115,9 +123,9 @@ int main( int argc, char* argv[] )
 		printf("%c",mode);	
 		fflush(stdout);	
 		read_fds = master;
-		if( mode == '#')
+		/*if( mode == '#')
 			select( max+1, &read_fds, NULL, NULL, &timeout);
-		else
+		else*/
 			select( max+1, &read_fds, NULL, NULL, NULL);
 
 		if( FD_ISSET(sd, &read_fds) )
@@ -272,6 +280,12 @@ void execute_cmd( char* str )
 		quit(0);
 	} else if ( strcmp(str, "!disconnect") == 0 ) {
 		disconnect();
+	} else if ( strcmp(str, "!test") == 0 ){
+		strcpy(higher_str,"test inviato con sendto");
+		for(int i=0; i<10; i++)
+			send_data(socket_udp,str,strlen(str)+1);
+		/*sendto(socket_udp, higher_str, strlen(higher_str), 0,
+			(struct sockaddr*)&opposite_addr, sizeof(opposite_addr));*/
 	} else if ( arranging_ships ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
@@ -307,7 +321,7 @@ void remote_req( int sockt, char* buf )
 		 	*nelle variabili globali*/
 			strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
 			memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
-
+			stampa_indirizzo(&opposite_addr);
 			re.t = ACCEPT_CONN_FROM_PEER;		
 		} else {
 			//printf("Rifiutato\n");
@@ -336,7 +350,7 @@ void remote_req( int sockt, char* buf )
 		 *nelle variabili globali*/
 		strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
 		memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
-		
+		stampa_indirizzo(&opposite_addr);
 		#ifdef DEBUG
 		printf("avversario ip:%x udp_port:%d\n",htonl(opposite_addr.sin_addr.s_addr),ntohs(opposite_addr.sin_port));
 		#endif
@@ -405,7 +419,7 @@ void remote_req( int sockt, char* buf )
 		printf("Il server è stato chiuso\n");
 		quit(0);
 	} else {
-		printf("Messaggio non riconosciuto\n");
+		printf("Messaggio non riconosciuto %s\n",buf);
 	}
 }
 

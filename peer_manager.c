@@ -139,6 +139,7 @@ static
 void alloc_peer( des_peer** p )
 {
 	*p = (des_peer*)malloc(sizeof(des_peer));
+	memset(*p,0,sizeof(des_peer)); 
 	(*p)->state = UNSET;
 	n_peers++;
 }
@@ -237,7 +238,7 @@ int remove_peer( int index )
 	#endif
 
 	/*leggi nota alla fine*/
-	memset(peers[index],0,sizeof(des_peer)); 
+//	memset(peers[index],0,sizeof(des_peer)); 
 	free(peers[index]);
 	peers[index] = NULL;
 	n_peers--;
