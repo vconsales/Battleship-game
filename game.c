@@ -1,6 +1,3 @@
-/*
-*!game
-*/
 #include "game.h"
 
 /* bit map variabile state

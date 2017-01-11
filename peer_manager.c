@@ -17,8 +17,6 @@ static unsigned int max_peers_;
 /*numero di peers attualmente inseriti*/
 static unsigned int n_peers_; 
 
-
-
 /*Alloca un des_peer e lo inizializza ad UNSET.
  *Si aspetta come parametro un indirizzo di puntatore
  *a des_peer. Dopo la chiamata il puntatore conterrà
@@ -164,31 +162,11 @@ void alloc_peer( des_peer** p )
 	n_peers_++;
 }
 
-int remove_peer_having_sock( int sockt )
+/*int remove_peer_having_sock( int sockt )
 {
 	int index = get_index_peer_sock(sockt);
-/*	int res = -1;
-
-	if( index != -1 ) 
-	{
-		printf("rimuovo il peer di indice %d\n",index);
-		free(peers_[index]);
-		peers_[index] = NULL;
-		n_peers_--;
-*/
-		/*se rimuovo l'ultimo elemento aggiorno la variabile*/
-/*		if( index == last_pos_ )
-			last_pos--;
-		else
-			position_free_ = 1; /*si e' liberato un posto in mezzo*/
-
-/*		return index;
-	}
-
-	return res;
-*/
       return remove_peer(index);
-}
+}*/
 
 int get_n_peers()
 {

@@ -35,20 +35,19 @@ int open_serverTCP( uint16_t port );
 /**restituisce id della socket che ha avuto la connessione*/
 int accept_serverTCP( int sock_serv, ConnectionTCP *conn ); 
 
-//int recv_data( int sockt, char** buf );
-/*
+
+
+/********************************************************
 * Riceve dati dalla socket indicata. La funzione negozia
 * il numero di byte da ricevere ed alloca un buffer in cui
 * depositare il messaggio. Il buffer verra' allocato nel
 * my_buffer* passato come parametro. Riceve al max 4GiB
-*/
-
+********************************************************/
 int recv_data( int sockt, my_buffer* my_buff );
 
 /*l'ultimo parametro dice quanti byte inviare (max 4GiB)*/
 int send_data( int sockt, char* buf, uint32_t buf_len );
 
-/*int recv_command();*/
 int close_connection( ConnectionTCP *conn );
 
 void clear_my_buffer( my_buffer *myb );

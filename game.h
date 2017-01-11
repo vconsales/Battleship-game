@@ -6,7 +6,6 @@
 
 #define SIZE_GRIND 6
 #define SHIP_NUMBER 7
-//#define DEBUG
 /****
 * per le griglie locali
 * x ->nave posizionata

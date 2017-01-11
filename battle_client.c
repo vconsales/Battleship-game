@@ -6,7 +6,7 @@
 
 /***Variabili globali***/
 my_buffer my_buf = INIT_MY_BUFFER;
-const time_t n_seconds = 60;
+const time_t N_SECONDS = 60;
 
 int sock_serv_TCP;
 int my_id = -1;
@@ -33,7 +33,7 @@ void register_to_serv( int sd );
 void execute_cmd( char* str );
 void remote_req( int sockt, char* buf );
 void arrange_my_ship();
-void disconnect();
+void disconnect(int show_msg);
 void switch_mode();
 void print_list_of_peers( char* buf );
 void shot_cmd( char* str );
@@ -54,7 +54,7 @@ int main( int argc, char* argv[] )
 	struct sockaddr_in serv_addr;
 
 	char buf[DIM_BUFF];
-	struct timeval timeout = {10,0};
+	struct timeval timeout;
 
 	fd_set master; /*set principale*/
 	fd_set read_fds; /*set di lettura*/
@@ -150,23 +150,20 @@ int main( int argc, char* argv[] )
 			}
 			convert_to_host_order(my_buf.buf);
 			remote_req(sd, my_buf.buf);
-			timeout.tv_sec = n_seconds;
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
 			recv_data(socket_udp,&my_buf);
 			convert_to_host_order(my_buf.buf);
 			remote_req(socket_udp, my_buf.buf);
-			timeout.tv_sec = n_seconds;
 		} else if( FD_ISSET(STDIN_FILENO,&read_fds) ) {
 			/*Cattura tutta la linea fino al carattere a capo*/
 			scanf(" %[^\n]s",buf);
 			/*esegue il comando scritto da tastiera*/
 			execute_cmd(buf);
-			timeout.tv_sec = n_seconds;
 		} else {
 			printf("\bTempo scaduto.\n");
-			disconnect();
-			//timeout.tv_sec = n_seconds;
+			disconnect(1);
 		}
+            timeout.tv_sec = N_SECONDS;
 	}
 
 	close(sd);
@@ -213,7 +210,7 @@ void register_to_serv( int sd )
 	}
 	else {
             printf("Errore nella registrazione\n");		
-            disconnect();
+            disconnect(1);
 	}
 	r_name.peer_id = my_id;
 	convert_to_network_order(&r_name);
@@ -296,7 +293,7 @@ void execute_cmd( char* str )
 	} else if ( strcmp(str, "!quit") == 0 ){
 		quit(0);
 	} else if ( strcmp(str, "!disconnect") == 0 ) {
-		disconnect();
+		disconnect(1);
 	} else if ( arranging_ships ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
@@ -318,9 +315,8 @@ void remote_req( int sockt, char* buf )
 	memcpy((void*)&m_type, (void*)buf, sizeof(m_type));
 	
 	if( m_type == REQ_CONN_FROM_PEER ){
-		/*il server invia erronamente un messaggio
-		 *di connessione accettata mentre si e' in
-		 *partita.*/
+		/*se il server invia erronamente un messaggio
+		 *di connessione accettata mentre si e' in partita.*/
 		if( mode == '#') return;
 		
 		printf(">Accetti connessione con %s? [S/N]: ", ((req_conn_peer*)buf)->peer_name);
@@ -350,8 +346,8 @@ void remote_req( int sockt, char* buf )
 			connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
 			/*Il sistema inizia a sistemare la navi*/
 			arranging_ships = 1; 
-			printf("-------------------------------\n");
-			printf("--Posiziona le tue navi\n");
+			printf("------------------------------------\n");
+			printf("-Posiziona le tue navi\n");
 		}	
 	} else if ( m_type == CONN_TO_PEER_ACCEPTED ) { 
 		/*il server invia erroneamente un messaggio
@@ -368,14 +364,19 @@ void remote_req( int sockt, char* buf )
 		#endif
 		//aggancio il socket udp all'avversario
 		ret = connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
-
-		printf("Richiesta di connessione accettata %d\n",ret);
+            
+            if( ret == 0 )
+		      printf("Richiesta di connessione accettata\n");
+            else {
+                  perror("Errore di connessione p2p");
+                  disconnect(1);   
+            }
 		switch_mode();
 
 		/*Il sistema inizia a sistemare la navi*/
 		arranging_ships = 1; 
-		printf("-------------------------------\n");
-		printf("--Posiziona le tue navi\n");
+		printf("------------------------------------\n");
+		printf("-Posiziona le tue navi\n");
 	} else if ( m_type == CONN_TO_PEER_REFUSED ) { 
 		/*il server invia erronamente un messaggio
 		 *di connessione accettata mentre si e' in
@@ -400,7 +401,7 @@ void remote_req( int sockt, char* buf )
 
 		if( ret == 2 ){
 			printf("Hai perso! :( \n");
-			disconnect();			
+			disconnect(0);			
 		}
 
 		your_turn = 1;
@@ -423,7 +424,7 @@ void remote_req( int sockt, char* buf )
 		show_grinds(&my_grind,&opposite_grind);
 	} else if ( m_type == YOU_WON ){
 		printf("\bHai vinto la partita! :D\n");
-		disconnect();
+		disconnect(0);
 	} else if( m_type == OPPONENT_DISCONNECTED ){
 		printf("\bIl tuo avversario si è disconnesso. Hai vinto la partita :D!\n");
 		mode = '>'; arranging_ships=0;		
@@ -520,21 +521,17 @@ void arrange_my_ship(char* str)
 	else if ( res == 1 ) {
 		arranging_ships = 0;
 		if( opposite_ready ){
-			printf("Gioco iniziato.\n");
+			printf("Gioco iniziato. Spara!\n");
 			your_turn = 1;
-		}
-		else
+		} else {
 			your_turn = 0;
-		printf("Navi posizionate con successo. Aspetta l'avversario.\n");
+		      printf("Navi posizionate con successo. Aspetta l'avversario.\n");
+            }
 	}
-	/*#ifdef DEBUG
-	printf("%c %c\n",col,row);
-	printf("debug=%d\n",x);
-	#endif */
 	show_grinds(&my_grind,NULL);
 }
 
-void disconnect()
+void disconnect( int show_msg )
 {
 	simple_mess m;
 	m.t = DISCONNECT_GAME;
@@ -547,15 +544,16 @@ void disconnect()
 	opposite_name[0] = '\0';
 	arranging_ships = 0;
 
-	if( mode == '#'){
-		printf("Disconnessione avvenuta con successo.\n");
+	if( mode == '#' ){
+            if( show_msg )
+		      printf("Disconnessione avvenuta con successo.\n");
 		mode = '>';
 	}
 }
 
 void quit( int sig )
 {
-	disconnect();
+	disconnect(1);
 	free(my_buf.buf);
 	close(sock_serv_TCP);
 	printf("\n\n");

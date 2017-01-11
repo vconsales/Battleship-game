@@ -3,7 +3,7 @@
 #include "net_wrapper.h"
 
 #define NAME_LEN 64
-#define DEBUG
+//#define DEBUG
 typedef enum { UNSET, NAME_SET, PEER_FREE, PEER_PLAYING } peer_state;
 
 /***************Descrittore di peer.*******************
@@ -27,9 +27,9 @@ des_peer* get_peer( int index );
 int remove_peer(int index );
 int get_index_peer_name( char* name );
 int get_index_peer_sock( int sockt );
-int add_peer();
+//int add_peer();
 int remove_peer( int index );
-int remove_peer_having_sock( int sockt );
+//int remove_peer_having_sock( int sockt );
 int get_n_peers();
 
 /*se l'id corrisponde ad un peer registrato ritorna 1 altrimenti 0*/

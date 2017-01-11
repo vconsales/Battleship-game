@@ -148,73 +148,81 @@ int analyze_message( int sockt, char* buf )
 
 	memcpy(&m, buf, sizeof(m));
 
-	if( m == DISCONNECT_GAME ) {
-		set_peer_free(index);
-	}else if( m == PEER_SETS_NAME ) {
-		if( p->state != UNSET )
-			return -1;
+      switch( m ) {
+            case DISCONNECT_GAME:
+                  set_peer_free(index);
+                  break;
+            case PEER_SETS_NAME:
+                  if( p->state != UNSET )
+			      return -1;
 
-		if( get_index_peer_name(((reg_set_name*)buf)->name) == -1 )
-		{
-			m = NAME_ACCEPTED;
-			strcpy(p->name, ((reg_set_name*)buf)->name);
-			convert_to_network_order(&m);
-			send_data(sockt, (char*)&m, sizeof(m));
-			p->state = NAME_SET;
-		} else {
-			m = NAME_REFUSED;
-			convert_to_network_order(&m);
-			send_data(sockt, (char*)&m, sizeof(m));
-		}
-	} else if( m == PEER_SETS_UDP_PORT) {
-		if( p->state != NAME_SET )
-			return -1;
+		      if( get_index_peer_name(((reg_set_name*)buf)->name) == -1 )
+		      {
+			      m = NAME_ACCEPTED;
+			      strcpy(p->name, ((reg_set_name*)buf)->name);
+			      convert_to_network_order(&m);
+			      send_data(sockt, (char*)&m, sizeof(m));
+			      p->state = NAME_SET;
+		      } else {
+			      m = NAME_REFUSED;
+			      convert_to_network_order(&m);
+			      send_data(sockt, (char*)&m, sizeof(m));
+		      }
+                  break;
+            case PEER_SETS_UDP_PORT:
+		      if( p->state != NAME_SET )
+			      return -1;
 
-	   	p->state = PEER_FREE;
-	   	p->udp_port = ((reg_set_udp_port*)buf)->udp_port;
-	   	printf("PEER %s riceve su porta UDP %hu \n",p->name,ntohs(p->udp_port));
-	} else if ( m == REQ_LIST_OF_PEERS ) {
-		#ifdef DEBUG
-		printf("Richiesta lista di peer\n");
-		#endif
-		send_list_of_peer(p->conn.socket); 
-	} else if( m == REQ_CONN_TO_PEER) {
-		if( p->state != PEER_FREE )
-			return -1;
+	         	p->state = PEER_FREE;
+	         	p->udp_port = ((reg_set_udp_port*)buf)->udp_port;
+	         	printf("PEER %s riceve su porta UDP %hu \n",p->name,ntohs(p->udp_port));
+                  break;
+	      case REQ_LIST_OF_PEERS:
+		      #ifdef DEBUG
+		      printf("Richiesta lista di peer\n");
+		      #endif
+		      send_list_of_peer(p->conn.socket); 
+                  break;
+	      case REQ_CONN_TO_PEER:
+		      if( p->state != PEER_FREE )
+			      return -1;
 
-		printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
-		connect_request(index,((req_conn_peer*)buf)->peer_name);
-	} else if ( m == ACCEPT_CONN_FROM_PEER ) {
-		printf("%s ha accettato la connessione\n",p->name);
-		re.t = CONN_TO_PEER_ACCEPTED;		
-		/* Ricopio i dati del peer che ha accettato nel messaggio di risposta*/
-		re.peer_id = index;
-		strcpy(re.peer_name,p->name);
-		memcpy(&re.peer_addr,&(p->conn.cl_addr),sizeof(re.peer_addr));
-		/*la porta udp è diversa della porta tcp della connessione client-server*/
-		re.peer_addr.sin_port = p->udp_port;
+		      printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
+		      connect_request(index,((req_conn_peer*)buf)->peer_name);
+                  break;
+	      case ACCEPT_CONN_FROM_PEER:
+		      printf("%s ha accettato la connessione\n",p->name);
+		      re.t = CONN_TO_PEER_ACCEPTED;		
+		      /* Ricopio i dati del peer che ha accettato nel messaggio di risposta*/
+		      re.peer_id = index;
+		      strcpy(re.peer_name,p->name);
+		      memcpy(&re.peer_addr,&(p->conn.cl_addr),sizeof(re.peer_addr));
+		      /*la porta udp è diversa della porta tcp della connessione client-server*/
+		      re.peer_addr.sin_port = p->udp_port;
 
-		int opponent_id = ((response_conn_to_peer*)buf)->opponent_id;
-		/*mando il messaggio all'avversario*/
-		p = get_peer(opponent_id);
+		      int opponent_id = ((response_conn_to_peer*)buf)->opponent_id;
+		      /*mando il messaggio all'avversario*/
+		      p = get_peer(opponent_id);
 
-		convert_to_network_order(&re); 
-		send_data(p->conn.socket,(char*)&re,sizeof(re));
+		      convert_to_network_order(&re); 
+		      send_data(p->conn.socket,(char*)&re,sizeof(re));
 
-		p->state = PEER_PLAYING;
-		p->opponent_id = index;
+		      p->state = PEER_PLAYING;
+		      p->opponent_id = index;
 
-		p = get_peer(index);
-		p->state = PEER_PLAYING;
-		p->opponent_id = opponent_id;
-	} else if ( m == REFUSE_CONN_FROM_PEER ) {
-		m = CONN_TO_PEER_REFUSED;
-		p = get_peer( ((response_conn_to_peer*)buf)->opponent_id );
+		      p = get_peer(index);
+		      p->state = PEER_PLAYING;
+		      p->opponent_id = opponent_id;
+                  break;
+	      case REFUSE_CONN_FROM_PEER:
+		      m = CONN_TO_PEER_REFUSED;
+		      p = get_peer( ((response_conn_to_peer*)buf)->opponent_id );
 
-		convert_to_network_order(&m);
-		send_data(p->conn.socket,(char*)&m,sizeof(re));
-	} else {
-		return -2;
+		      convert_to_network_order(&m);
+		      send_data(p->conn.socket,(char*)&m,sizeof(re));
+                  break;
+	      default:
+		      return -2;
 	}
 
 	return 0;
@@ -224,9 +232,6 @@ int send_welcome( int sockt, int id )
 {
 	/*invia il messaggio di benvenuto con l'id*/
 	simple_mess sm = INIT_WELCOME_MESS(id);
-	//int res;
-	//sprintf(buf,"WELCOME YOUR ID IS %d",id);
-	//printf("Mando: %s\n",buf);
 	convert_to_network_order(&sm);
 	int res = send_data(sockt, (char*)&sm, sizeof(sm));		
 	return res;
