@@ -175,7 +175,7 @@ int analyze_message( int sockt, char* buf )
 
 	         	p->state = PEER_FREE;
 	         	p->udp_port = ((reg_set_udp_port*)buf)->udp_port;
-	         	printf("PEER %s riceve su porta UDP %hu \n",p->name,ntohs(p->udp_port));
+	         	printf("Peer %s registrato. La sua porta udp è %hu \n",p->name,ntohs(p->udp_port));
                   break;
 	      case REQ_LIST_OF_PEERS:
 		      #ifdef DEBUG
