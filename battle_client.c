@@ -8,7 +8,6 @@
 my_buffer my_buf = INIT_MY_BUFFER;
 const time_t n_seconds = 60;
 
-
 int sock_serv_TCP;
 int my_id = -1;
 uint16_t my_udp_port;
@@ -81,6 +80,7 @@ int main( int argc, char* argv[] )
 	/*converto in big endian*/
 	serv_addr.sin_port = htons(serv_addr.sin_port); 
 
+      /*apro socket tcp per la connessione con il server*/
 	sd = socket(AF_INET, SOCK_STREAM, 0);
 	sock_serv_TCP = sd;
 
@@ -102,19 +102,25 @@ int main( int argc, char* argv[] )
 	/*assegno handler al segnale generato da CTRL+C*/
 	signal(SIGINT,quit);
 
+      /*apro socket udp per la comunicazione p2p*/
 	socket_udp = socket(AF_INET,SOCK_DGRAM,0);
 	if( socket_udp == -1 ) {
 		printf("Errore socket udp non aperta.\n");
 		return -1;
 	}
 
+      /*Registrazione al server*/
 	register_to_serv(sd);
+
+      /*Mostro i comandi disponibili*/
 	help();
 
+      /*Inizializzo il gioco*/
 	init_game( &my_grind, 1, socket_udp );
 	init_game( &opposite_grind, 0, socket_udp );
 
-	FD_SET(STDIN_FILENO,&master);	//stdin
+      
+	FD_SET(STDIN_FILENO,&master);	
 	FD_SET(sd,&master);
 	FD_SET(socket_udp,&master);
 
@@ -122,27 +128,30 @@ int main( int argc, char* argv[] )
 	while(1) {
 		printf("%c",mode);	
 		fflush(stdout);	
+		fflush(stdin);
 		read_fds = master;
-		/*if( mode == '#')
+
+            /*se siamo nella modalita game uso il timeout*/
+		if( mode == '#')
 			select( max+1, &read_fds, NULL, NULL, &timeout);
-		else*/
+		else
 			select( max+1, &read_fds, NULL, NULL, NULL);
 
 		if( FD_ISSET(sd, &read_fds) )
 		{
-			printf("\b");
+                  /*il messaggio è stato mandato dal server*/
+            
+                  printf("\b"); /*cancella ">" */
 			ret = recv_data(sd, &my_buf);
 			if( ret == -1 )	{
 				printf("Il server ha chiuso la connessione\n");
 				close(sd);
 				exit(1);
 			}
-
 			convert_to_host_order(my_buf.buf);
 			remote_req(sd, my_buf.buf);
 			timeout.tv_sec = n_seconds;
 		} else if( FD_ISSET(socket_udp, &read_fds) ) {
-			//printf("mess udp\n");
 			recv_data(socket_udp,&my_buf);
 			convert_to_host_order(my_buf.buf);
 			remote_req(socket_udp, my_buf.buf);
@@ -150,6 +159,7 @@ int main( int argc, char* argv[] )
 		} else if( FD_ISSET(STDIN_FILENO,&read_fds) ) {
 			/*Cattura tutta la linea fino al carattere a capo*/
 			scanf(" %[^\n]s",buf);
+			/*esegue il comando scritto da tastiera*/
 			execute_cmd(buf);
 			timeout.tv_sec = n_seconds;
 		} else {
@@ -189,18 +199,22 @@ void register_to_serv( int sd )
 	reg_set_udp_port r_udp = INIT_REG_SET_UDP_PORT;
 
 	int ret = recv_data(sd, &my_buf);
+	//printf("byte ricevuti %d\n",ret);
 	if( ret ) {
 		convert_to_host_order(my_buf.buf);
 		//sscanf(my_buf.buf, "WELCOME YOUR ID IS %d", &my_id);
-		if( ((simple_mess*)my_buf.buf)->t != WELCOME_MESS )
+		if( ((simple_mess*)my_buf.buf)->t != WELCOME_MESS ){
+			printf("Messaggio di welcome non ricevuto\n");
 			quit(1);
+		}
 
 		my_id = ((simple_mess*)my_buf.buf)->peer_id;
 		printf("MY ID IS: %d \n",my_id);
 	}
-	else
-		disconnect();
-	
+	else {
+            printf("Errore nella registrazione\n");		
+            disconnect();
+	}
 	r_name.peer_id = my_id;
 	convert_to_network_order(&r_name);
 
@@ -271,7 +285,10 @@ void execute_cmd( char* str )
 	if( strlen(str) > 74 )
 		return;
 
-	sscanf(str," %s %[^\n]s",cmd, higher_str);
+/*	fflush(stdin);
+	printf("La stringa ricev: %s\n",str );*/
+	sscanf(str," %s %s",cmd,higher_str);
+	//sscanf(str," %s %[^\n]s",cmd, higher_str);
 	//printf("%s %s\n",cmd,higher_str);
 
 	if( strcmp(cmd,"!help") == 0 ) {
@@ -280,12 +297,6 @@ void execute_cmd( char* str )
 		quit(0);
 	} else if ( strcmp(str, "!disconnect") == 0 ) {
 		disconnect();
-	} else if ( strcmp(str, "!test") == 0 ){
-		strcpy(higher_str,"test inviato con sendto");
-		for(int i=0; i<10; i++)
-			send_data(socket_udp,str,strlen(str)+1);
-		/*sendto(socket_udp, higher_str, strlen(higher_str), 0,
-			(struct sockaddr*)&opposite_addr, sizeof(opposite_addr));*/
 	} else if ( arranging_ships ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
@@ -321,7 +332,9 @@ void remote_req( int sockt, char* buf )
 		 	*nelle variabili globali*/
 			strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
 			memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
+			#ifdef DEBUG
 			stampa_indirizzo(&opposite_addr);
+			#endif
 			re.t = ACCEPT_CONN_FROM_PEER;		
 		} else {
 			//printf("Rifiutato\n");
@@ -341,7 +354,7 @@ void remote_req( int sockt, char* buf )
 			printf("--Posiziona le tue navi\n");
 		}	
 	} else if ( m_type == CONN_TO_PEER_ACCEPTED ) { 
-		/*il server invia erronamente un messaggio
+		/*il server invia erroneamente un messaggio
 		 *di connessione accettata mentre si e' in
 		 *partita.*/
 		if( mode == '#') return;
@@ -349,10 +362,9 @@ void remote_req( int sockt, char* buf )
 		/*Copio i dati dell'avversario presenti nel messaggio
 		 *nelle variabili globali*/
 		strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
-		memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));
-		stampa_indirizzo(&opposite_addr);
+		memcpy((void*)&opposite_addr, (void*)&(((req_conn_peer*)buf)->peer_addr), sizeof(opposite_addr));	
 		#ifdef DEBUG
-		printf("avversario ip:%x udp_port:%d\n",htonl(opposite_addr.sin_addr.s_addr),ntohs(opposite_addr.sin_port));
+		stampa_indirizzo(&opposite_addr);
 		#endif
 		//aggancio il socket udp all'avversario
 		ret = connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
@@ -507,11 +519,13 @@ void arrange_my_ship(char* str)
 		printf("Errore inserimento coordinate\n");
 	else if ( res == 1 ) {
 		arranging_ships = 0;
-		if( opposite_ready )
+		if( opposite_ready ){
+			printf("Gioco iniziato.\n");
 			your_turn = 1;
+		}
 		else
 			your_turn = 0;
-		printf("Navi posizionate con successo.\n");
+		printf("Navi posizionate con successo. Aspetta l'avversario.\n");
 	}
 	/*#ifdef DEBUG
 	printf("%c %c\n",col,row);
@@ -529,15 +543,12 @@ void disconnect()
 	convert_to_network_order(&m);
 	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
 
-	/*init_game( &my_grind, 1, socket_udp );
-	init_game( &opposite_grind, 0, socket_udp );*/
-	
 	opposite_ready = 0;
 	opposite_name[0] = '\0';
 	arranging_ships = 0;
 
 	if( mode == '#'){
-		printf("Disconnessione avvenuta con successo: ti sei arreso\n");
+		printf("Disconnessione avvenuta con successo.\n");
 		mode = '>';
 	}
 }

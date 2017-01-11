@@ -3,7 +3,7 @@
 #include "net_wrapper.h"
 
 #define NAME_LEN 64
-
+#define DEBUG
 typedef enum { UNSET, NAME_SET, PEER_FREE, PEER_PLAYING } peer_state;
 
 /***************Descrittore di peer.*******************

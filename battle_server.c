@@ -77,7 +77,10 @@ void requests_manager()
 					if( id != -1 ){
 						pe = get_peer(id);
 						sd = accept_serverTCP( sock_serv, &pe->conn );
-						send_welcome(sd, id);
+						ret = send_welcome(sd, id);
+						#ifdef DEBUG
+						printf("welcome: %d\n",ret);
+						#endif
 
 						FD_SET( sd, &master );
 						if( sd > fdmax )

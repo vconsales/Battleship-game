@@ -1,27 +1,47 @@
 #include "peer_manager.h"
 
-/******variabili e metodi privati del gestore***/
-static int last_pos; //ultima posizione usata
-static char position_free;
-static unsigned int n_peers;
-static unsigned int max_peers;
+/******variabili e metodi privati del gestore**********/
+
+/*vettore di puntatori a descrittori di peer*/
+static des_peer** peers_;
+
+/*ultima posizione usata*/
+static int last_pos_;
+
+/*vi è una posizione libera(in mezzo)*/
+static char position_free_;
+
+/*quanti elementi al massimo può contenere peers*/
+static unsigned int max_peers_;
+
+/*numero di peers attualmente inseriti*/
+static unsigned int n_peers_; 
+
+
+
+/*Alloca un des_peer e lo inizializza ad UNSET.
+ *Si aspetta come parametro un indirizzo di puntatore
+ *a des_peer. Dopo la chiamata il puntatore conterrà
+ *l'indirizzo del nuovo des_peer allocato
+ */
 static void alloc_peer( des_peer** p );
-static des_peer** peers;
-/***********************************************/
+
+/*****************************************************/
 
 int init_peer_manager()
 {
-	max_peers = 10;
-	n_peers = 0;
-	position_free = 0;
-	last_pos = -1;
-
-	size_t size_peer = sizeof(des_peer*) * max_peers;
-	peers = (des_peer**)malloc(size_peer);
-	if( peers == NULL )
+	max_peers_ = 10;
+	n_peers_ = 0;
+	position_free_ = 0;
+	last_pos_ = -1;
+      
+      /*Alloco il vettore che contiene max_peers puntatori a peers*/
+	size_t size_peers = sizeof(des_peer*) * max_peers_;
+	peers_ = (des_peer**)malloc(size_peers);
+	if( peers_ == NULL )
 		return 0;
 	/*azzero tutti i puntatori*/
-	memset( peers, 0, size_peer ); 
+	memset( peers_, 0, size_peers ); 
 
 	return 1;
 }
@@ -29,32 +49,32 @@ int init_peer_manager()
 int more_peers()
 {
 	//int i;
-	unsigned int old_max = max_peers;
+	unsigned int old_max = max_peers_;
 	des_peer** new_v = NULL;
 
-	max_peers *= 2;
-	new_v = (des_peer**)malloc(sizeof(des_peer*)*max_peers);
+	max_peers_ *= 2;
+	new_v = (des_peer**)malloc(sizeof(des_peer*)*max_peers_);
 	if( new_v == NULL )
 		return -1;
 
 	/*azzero l'array di puntatori e poi ci copio
 	  i vecchi valori*/
-	memset(new_v,0,sizeof(des_peer*)*max_peers); 
-	memcpy(new_v,peers,sizeof(des_peer*)*old_max);
+	memset(new_v,0,sizeof(des_peer*)*max_peers_); 
+	memcpy(new_v,peers_,sizeof(des_peer*)*old_max);
 
 	/*for( i=0; i<old_max; i++ )
 		new_v[i] = peers[i]; */
-	free(peers);
-	peers = new_v;
-	return max_peers;
+	free(peers_);
+	peers_ = new_v;
+	return max_peers_;
 }
 
 int get_index_peer_sock( int sockt )
 {
 	int i;
-	for( i=0; i<=last_pos; i++)
+	for( i=0; i<=last_pos_; i++)
 	{
-		if( (peers[i] != NULL) && (peers[i]->conn.socket == sockt) )
+		if( (peers_[i] != NULL) && (peers_[i]->conn.socket == sockt) )
 			return i;
 	}
 	return -1;
@@ -63,16 +83,16 @@ int get_index_peer_sock( int sockt )
 int get_index_peer_name( char* name )
 {
 	int i;
-	if( n_peers == 0 )
+	if( n_peers_ == 0 )
 		return -1;
 
-	for( i=0; i<=last_pos; i++)
+	for( i=0; i<=last_pos_; i++)
 	{
 		#ifdef DEBUG
-		printf("peers[%d]=%ld\n",i,(void*)peers[i]);
+		printf("peers[%d]=%p\n",i,peers_[i]);
 		#endif
 
-		if( (peers[i] != NULL) && (strcmp(peers[i]->name,name)==0) )
+		if( (peers_[i] != NULL) && (strcmp(peers_[i]->name,name)==0) )
 			return i;
 	}
 	return -1;
@@ -82,7 +102,7 @@ int add_peer( )
 {
 	int i;
 
-	if( n_peers == max_peers ) 
+	if( n_peers_ == max_peers_ ) 
 	{
 		i = more_peers();
 		if( i==-1 ) {
@@ -91,13 +111,13 @@ int add_peer( )
 		}
 	}
 
-	if( n_peers == 0 )
+	if( n_peers_ == 0 )
 	{
 		#ifdef DEBUG
 		printf("--aggiungo peer in pos. 0\n");
 		#endif
-		alloc_peer(&peers[0]);
-		last_pos = 0; 
+		alloc_peer(&peers_[0]);
+		last_pos_ = 0; 
 		return 0;
 	}
 
@@ -110,29 +130,29 @@ int add_peer( )
 	  quella variabile viene settata falsa se il ciclo viene
 	  eseguito e non si trova un campo vuoto.*/
 
-	if( position_free ) 
+	if( position_free_ ) 
 	{
-		for(i=0; i<=last_pos; i++)
+		for(i=0; i<=last_pos_; i++)
 		{
-			if( peers[i] == NULL )
+			if( peers_[i] == NULL )
 			{
 				#ifdef DEBUG
 				printf("--aggiungo peer in pos. %d\n",i);
 				#endif
-				alloc_peer(&peers[i]);
+				alloc_peer(&peers_[i]);
 				return i;
 			}
 		}
-		position_free = 0;
+		position_free_ = 0;
 	}
-	last_pos++;
+	last_pos_++;
 
 	#ifdef DEBUG
-	printf("--aggiungo peer in pos. %d\n",last_pos);
+	printf("--aggiungo peer in pos. %d\n",last_pos_);
 	#endif
 
-	alloc_peer(&peers[last_pos]);
-	return last_pos;
+	alloc_peer(&peers_[last_pos_]);
+	return last_pos_;
 }
 
 static
@@ -141,43 +161,43 @@ void alloc_peer( des_peer** p )
 	*p = (des_peer*)malloc(sizeof(des_peer));
 	memset(*p,0,sizeof(des_peer)); 
 	(*p)->state = UNSET;
-	n_peers++;
+	n_peers_++;
 }
 
 int remove_peer_having_sock( int sockt )
 {
 	int index = get_index_peer_sock(sockt);
-	int res = -1;
-	//int i, last;
+/*	int res = -1;
 
 	if( index != -1 ) 
 	{
 		printf("rimuovo il peer di indice %d\n",index);
-		free(peers[index]);
-		peers[index] = NULL;
-		n_peers--;
-
+		free(peers_[index]);
+		peers_[index] = NULL;
+		n_peers_--;
+*/
 		/*se rimuovo l'ultimo elemento aggiorno la variabile*/
-		if( index == last_pos )
+/*		if( index == last_pos_ )
 			last_pos--;
 		else
-			position_free = 1; //si e' liberato un posto in mezzo
+			position_free_ = 1; /*si e' liberato un posto in mezzo*/
 
-		return index;
+/*		return index;
 	}
 
 	return res;
+*/
+      return remove_peer(index);
 }
 
 int get_n_peers()
 {
-	return n_peers;
+	return n_peers_;
 }
 
 int get_peers_name( char** list )
 {
 	int i, ins;
-//	char pre[] = {"LIST OF PEERS: \n"};
 	char s_libero[] = {"(libero)\n"};
 	char s_occupato[] = {"(occupato)\n"};
 
@@ -189,19 +209,19 @@ int get_peers_name( char** list )
 
 	/*Ogni stringa occupa: NAME_LEN byte (NAME_LEN-1) per il nome + stato + '\n'.
 	 *In totale = len_pre + spazio_singolo * n_peers + '\0'; */
-	*list = (char*)malloc(NAME_LEN + n_state*n_peers + 1 );
+	*list = (char*)malloc(NAME_LEN + n_state*n_peers_ + 1 );
 //	strcpy(*list, pre) ;
 
-	for( i=0, ins=0; ins<n_peers; i++ ) {
+	for( i=0, ins=0; ins<n_peers_; i++ ) {
 		/*Dato che l'array puo' contenere buchi
 		 *controllo che l'elemento sia valido.
 		 *Inserisco solo i peer che sono registrati. */
-		if( peers[i] != NULL ) {
-			if( peers[i]->state == PEER_FREE ){
-				strcat(*list,peers[i]->name);
+		if( peers_[i] != NULL ) {
+			if( peers_[i]->state == PEER_FREE ){
+				strcat(*list,peers_[i]->name);
 				strcat(*list,s_libero);
-			} else if( peers[i]->state == PEER_PLAYING ) {
-				strcat(*list,peers[i]->name);
+			} else if( peers_[i]->state == PEER_PLAYING ) {
+				strcat(*list,peers_[i]->name);
 				strcat(*list,s_occupato);
 			}
 			ins++;
@@ -213,9 +233,9 @@ int get_peers_name( char** list )
 
 int is_valid_id( int id )
 {
-	if( id >= max_peers )
+	if( id >= max_peers_ )
 		return 0;
-	if( peers[id] == NULL )
+	if( peers_[id] == NULL )
 		return 0;
 	else
 		return 1;
@@ -223,9 +243,9 @@ int is_valid_id( int id )
 
 des_peer* get_peer( int index )
 {
-	if( index >= max_peers )
+	if( index >= max_peers_ )
 		return NULL;
-	return peers[index];
+	return peers_[index];
 }
 
 int remove_peer( int index )
@@ -238,19 +258,19 @@ int remove_peer( int index )
 	#endif
 
 	/*leggi nota alla fine*/
-//	memset(peers[index],0,sizeof(des_peer)); 
-	free(peers[index]);
-	peers[index] = NULL;
-	n_peers--;
+/*	memset(peers[index],0,sizeof(des_peer)); */
+	free(peers_[index]);
+	peers_[index] = NULL;
+	n_peers_--;
 
 	/*se rimuovo l'ultimo elemento aggiorno la variabile*/
-	if( index == last_pos )
-		last_pos--;
+	if( index == last_pos_ )
+		last_pos_--;
 	else
-		position_free = 1; //si e' liberato un posto in mezzo
+		position_free_ = 1; /*si e' liberato un posto in mezzo*/
 
 	#ifdef DEBUG
-	printf("last_pos:%d position_free:%d n_peers:%d\n",last_pos,position_free,n_peers);
+	printf("last_pos:%d position_free:%d n_peers:%d\n",last_pos_,position_free_,n_peers_);
 	#endif
 
 	return 1;
