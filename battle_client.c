@@ -284,8 +284,8 @@ void execute_cmd( char* str )
 
 /*	fflush(stdin);
 	printf("La stringa ricev: %s\n",str );*/
-	sscanf(str," %s %s",cmd,higher_str);
-	//sscanf(str," %s %[^\n]s",cmd, higher_str);
+	//sscanf(str," %s %s",cmd,higher_str);
+	sscanf(str," %s %[^\n]s",cmd, higher_str);
 	//printf("%s %s\n",cmd,higher_str);
 
 	if( strcmp(cmd,"!help") == 0 ) {

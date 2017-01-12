@@ -27,7 +27,7 @@ des_peer* get_peer( int index );
 int remove_peer(int index );
 int get_index_peer_name( char* name );
 int get_index_peer_sock( int sockt );
-//int add_peer();
+int add_peer();
 int remove_peer( int index );
 //int remove_peer_having_sock( int sockt );
 int get_n_peers();

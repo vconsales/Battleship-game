@@ -25,7 +25,7 @@ typedef struct my_buffer_t
 typedef struct ConnectionTCP_t
 {
 	int socket;
-	struct sockaddr_in cl_addr; 
+	struct sockaddr_in cl_addr;
 }ConnectionTCP;
 
 
@@ -33,7 +33,7 @@ typedef struct ConnectionTCP_t
 int open_serverTCP( uint16_t port );
 
 /**restituisce id della socket che ha avuto la connessione*/
-int accept_serverTCP( int sock_serv, ConnectionTCP *conn ); 
+int accept_serverTCP( int sock_serv, ConnectionTCP *conn );
 
 
 
