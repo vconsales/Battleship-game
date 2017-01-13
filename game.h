@@ -34,10 +34,10 @@
 * lasciare la griglia in uno stato inconsistente.
 *******************************************************/
 typedef struct battle_game_t
-{
-	int sock_udp; 
+{ 
 	char battle_grind[SIZE_GRIND][SIZE_GRIND];
 	uint8_t state;
+	int sock_udp;
 }battle_game;
 
 typedef struct coord_t
