@@ -1,8 +1,4 @@
-#include "game.h"
-#include "net_wrapper.h"
-#include "messages.h"
 #include "battle_client.h"
-#include <signal.h>
 
 void stampa_indirizzo( struct sockaddr_in *addr )
 {
@@ -500,8 +496,6 @@ void remote_req( int sockt, char* buf )
 	} else if ( m_type == YOU_WON ){
 		printf("\bHai vinto la partita! :D\n");
 		disconnect(0);
-		/*mode = '>';
-		state &= 0x0F;*/
 	} else if( m_type == OPPONENT_DISCONNECTED ){
 		if( get_n_ship_hit(&opposite_grind) != SHIP_NUMBER )
 			printf("\bIl tuo avversario si è disconnesso. Hai vinto la partita :D!\n");
@@ -527,8 +521,6 @@ void switch_mode(){
 void print_list_of_peers( char* buf )
 {
 	int i;
-	//char name[NAME_LEN+1];
-
 	res_list_peers *re = (res_list_peers*)buf;
 
 	#ifdef DEBUG

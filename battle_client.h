@@ -1,7 +1,11 @@
+#include "game.h"
+#include "net_wrapper.h"
+#include "messages.h"
+#include <signal.h>
+
 /***Variabili globali***/
 my_buffer my_buf = INIT_MY_BUFFER;
 const time_t N_SECONDS = 60;
-#define NAME_LEN 64
 
 int sock_serv_TCP;
 int my_id = -1;
@@ -31,8 +35,6 @@ unsigned char state = 0;
  * 1 -> nome impostato
  * 0 -> id ricevuto
 */
-
-
 /*************************************/
 
 void quit(int sig);

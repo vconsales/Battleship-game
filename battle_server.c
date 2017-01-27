@@ -244,8 +244,8 @@ int send_list_of_peer( int sockt )
 	uint8_t* list_state = NULL;
 	/*messaggio di risposta da inviare al client*/
 	res_list_peers* message_res = NULL;
-
 	uint32_t dim_mess;
+	uint32_t i;
 
 	/*devo preparare il messaggio di risposta
 	  del tipo res_list_peers */
@@ -281,7 +281,7 @@ int send_list_of_peer( int sockt )
 	message_res->n_peer = np;
 
 	/*copio tutti i nomi(validi) nel messaggio di risp*/
-	for( int i=0; i<np; i++){
+	for( i=0; i<np; i++){
 		memcpy(&message_res->peer_info[i].name,list_name+i*NAME_LEN,NAME_LEN);
 		message_res->peer_info[i].name[NAME_LEN] = '\0';
 		message_res->peer_info[i].state = list_state[i];
