@@ -1,31 +1,8 @@
 #include "game.h"
 #include "net_wrapper.h"
 #include "messages.h"
+#include "battle_client.h"
 #include <signal.h>
-
-
-/***Variabili globali***/
-my_buffer my_buf = INIT_MY_BUFFER;
-const time_t N_SECONDS = 60;
-
-int sock_serv_TCP;
-int my_id = -1;
-uint16_t my_udp_port;
-char my_name[64];
-const unsigned short DIM_BUFF = 512;
-struct sockaddr_in my_addr;
-battle_game my_grind;
-
-int socket_udp;
-char opposite_name[64];
-struct sockaddr_in opposite_addr;
-battle_game opposite_grind;
-unsigned char opposite_ready = 0;
-
-char mode = '>';
-unsigned char arranging_ships = 0;
-unsigned char your_turn = 1;
-/*************************************/
 
 void quit(int sig);
 void help();
@@ -46,6 +23,113 @@ void stampa_indirizzo( struct sockaddr_in *addr )
 	inet_ntop(AF_INET, &addr->sin_addr, str, 16);
 	printf("ip: %s",str);
 	printf("porta: %hu", ntohs(addr->sin_port));
+}
+
+unsigned char playing_game()
+{
+	unsigned char mask = 0x80;
+	return state & mask;
+}
+
+void set_playing_game( int s )
+{
+	unsigned char mask = 0x80;
+	/*se devo settare metto ad 1 il
+         *bit n.7 altrimenti lo azzero*/	
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
+}
+
+unsigned char is_opposite_ready()
+{
+	unsigned char mask = 0x40;
+	return state & mask;
+}
+
+void set_opposite_ready( int s )
+{
+	unsigned char mask = 0x40;
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
+}
+
+unsigned char arranging_ships()
+{
+	unsigned char mask = 0x20;
+	return state & mask;
+}
+
+void set_arranging_ships( int s )
+{
+	unsigned char mask = 0x20;
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
+}
+
+unsigned char is_my_turn()
+{
+	unsigned char mask = 0x10;
+	return state & mask;
+}
+
+void set_my_turn( int s )
+{
+	unsigned char mask = 0x10;
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
+}
+
+unsigned char udp_port_registred()
+{
+	unsigned char mask = 0x04;
+	return state & mask;
+}
+
+void set_udp_port_registred( int s )
+{
+	unsigned char mask = 0x04;
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
+}
+
+unsigned char name_registred()
+{
+	unsigned char mask = 0x02;
+	return state &= mask;
+}
+
+void set_name_registred( int s )
+{
+	unsigned char mask = 0x02;
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
+}
+
+unsigned char id_received()
+{
+	unsigned char mask = 0x01;
+	return state & mask;
+}
+
+void set_id_received( int s )
+{
+	unsigned char mask = 0x01;
+	if ( s )
+		state |= mask;
+	else
+		state &= ~mask;
 }
 
 int main( int argc, char* argv[] )
@@ -80,7 +164,7 @@ int main( int argc, char* argv[] )
 	/*converto in big endian*/
 	serv_addr.sin_port = htons(serv_addr.sin_port); 
 
-      /*apro socket tcp per la connessione con il server*/
+      	/*apro socket tcp per la connessione con il server*/
 	sd = socket(AF_INET, SOCK_STREAM, 0);
 	sock_serv_TCP = sd;
 
@@ -102,20 +186,20 @@ int main( int argc, char* argv[] )
 	/*assegno handler al segnale generato da CTRL+C*/
 	signal(SIGINT,quit);
 
-      /*apro socket udp per la comunicazione p2p*/
+      	/*apro socket udp per la comunicazione p2p*/
 	socket_udp = socket(AF_INET,SOCK_DGRAM,0);
 	if( socket_udp == -1 ) {
 		printf("Errore socket udp non aperta.\n");
 		return -1;
 	}
 
-      /*Registrazione al server*/
+      	/*Registrazione al server*/
 	register_to_serv(sd);
 
-      /*Mostro i comandi disponibili*/
+      	/*Mostro i comandi disponibili*/
 	help();
 
-      /*Inizializzo il gioco*/
+	/*Inizializzo il gioco*/
 	init_game( &my_grind, 1, socket_udp );
 	init_game( &opposite_grind, 0, socket_udp );
 
@@ -199,14 +283,16 @@ void register_to_serv( int sd )
 	//printf("byte ricevuti %d\n",ret);
 	if( ret ) {
 		convert_to_host_order(my_buf.buf);
-		//sscanf(my_buf.buf, "WELCOME YOUR ID IS %d", &my_id);
+
 		if( ((simple_mess*)my_buf.buf)->t != WELCOME_MESS ){
 			printf("Messaggio di welcome non ricevuto\n");
 			quit(1);
 		}
 
 		my_id = ((simple_mess*)my_buf.buf)->peer_id;
+		#ifdef DEBUG		
 		printf("MY ID IS: %d \n",my_id);
+		#endif
 	}
 	else {
             printf("Errore nella registrazione\n");		
@@ -230,12 +316,12 @@ void register_to_serv( int sd )
 			quit(1);
 
 		ret = recv_data(sd, &my_buf); 
-		if( ret == -1 )
-			quit(1);
-
+		if( ret == -1 ){
+			printf("Registrazione fallita.\n");
+			quit(1);		
+		}
 		convert_to_host_order(my_buf.buf);
 
-		/*si puo' togliere da qui forse*/
 		message_type m;
 		memcpy(&m, my_buf.buf, sizeof(m));
 
@@ -284,8 +370,8 @@ void execute_cmd( char* str )
 
 /*	fflush(stdin);
 	printf("La stringa ricev: %s\n",str );*/
-	sscanf(str," %s %s",cmd,higher_str);
-	//sscanf(str," %s %[^\n]s",cmd, higher_str);
+	//sscanf(str," %s %s",cmd,higher_str);
+	sscanf(str," %s %[^\n]s",cmd, higher_str);
 	//printf("%s %s\n",cmd,higher_str);
 
 	if( strcmp(cmd,"!help") == 0 ) {
@@ -294,14 +380,17 @@ void execute_cmd( char* str )
 		quit(0);
 	} else if ( strcmp(str, "!disconnect") == 0 ) {
 		disconnect(1);
-	} else if ( arranging_ships ) {
+	} else if ( arranging_ships() ) {
 		arrange_my_ship(str);
 	} else if ( strcmp(cmd, "!who") == 0 ) {
 		who_cmd();
 	} else if( strcmp(cmd, "!connect") == 0 ) {
 		connect_cmd(higher_str);
 	} else if( strcmp(cmd,"!shot")==0 ) {
-		shot_cmd(higher_str);
+		if( playing_game() )
+			shot_cmd(higher_str);
+		else
+			printf("Gioco non iniziato\n");
 	} else 
 		printf("\bComando non riconosciuto.\n");
 }
@@ -323,7 +412,6 @@ void remote_req( int sockt, char* buf )
 		scanf(" %[^\n]c",&c);
 		//scanf("%c",&c);
 		if( c=='S' || c=='s' ) {
-			//printf("Accettato\n");
 			/*Copio i dati dell'avversario presenti nel messaggio
 		 	*nelle variabili globali*/
 			strcpy(opposite_name,((req_conn_peer*)buf)->peer_name);
@@ -345,7 +433,7 @@ void remote_req( int sockt, char* buf )
 			switch_mode();	
 			connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
 			/*Il sistema inizia a sistemare la navi*/
-			arranging_ships = 1; 
+			set_arranging_ships(1); 
 			printf("------------------------------------\n");
 			printf("-Posiziona le tue navi\n");
 		}	
@@ -362,7 +450,7 @@ void remote_req( int sockt, char* buf )
 		#ifdef DEBUG
 		stampa_indirizzo(&opposite_addr);
 		#endif
-		//aggancio il socket udp all'avversario
+		/*aggancio socket udp all'avversario*/
 		ret = connect(socket_udp, (struct sockaddr*)&opposite_addr, sizeof(opposite_addr));
             
             if( ret == 0 )
@@ -374,7 +462,7 @@ void remote_req( int sockt, char* buf )
 		switch_mode();
 
 		/*Il sistema inizia a sistemare la navi*/
-		arranging_ships = 1; 
+		set_arranging_ships(1); 
 		printf("------------------------------------\n");
 		printf("-Posiziona le tue navi\n");
 	} else if ( m_type == CONN_TO_PEER_REFUSED ) { 
@@ -404,10 +492,10 @@ void remote_req( int sockt, char* buf )
 			disconnect(0);			
 		}
 
-		your_turn = 1;
+		set_my_turn(1);
 	} else if ( m_type == SHIP_ARRANGED ) {
 		printf("\b%s ha posizionato tutte le navi\n",opposite_name);
-		opposite_ready = 1;
+		set_opposite_ready(1);
 	} else if ( m_type == SHIP_HIT ) {
 		coordinate co;
 		co.x = ((shot_mess*)buf)->col;
@@ -425,9 +513,13 @@ void remote_req( int sockt, char* buf )
 	} else if ( m_type == YOU_WON ){
 		printf("\bHai vinto la partita! :D\n");
 		disconnect(0);
+		/*mode = '>';
+		state &= 0x0F;*/
 	} else if( m_type == OPPONENT_DISCONNECTED ){
-		printf("\bIl tuo avversario si è disconnesso. Hai vinto la partita :D!\n");
-		mode = '>'; arranging_ships=0;		
+		if( get_n_ship_hit(&opposite_grind) != SHIP_NUMBER )
+			printf("\bIl tuo avversario si è disconnesso. Hai vinto la partita :D!\n");
+		mode = '>'; 
+		state &= 0x0F;		
 	} else if( m_type == SERVER_QUIT ) {
 		printf("Il server è stato chiuso\n");
 		quit(0);
@@ -480,12 +572,12 @@ void shot_cmd( char* str )
 	char col;
 	char row;
 	coordinate co;
-	if( !opposite_ready ){
+	if( !is_opposite_ready() ){
 		printf("L'avversario non e' ancora pronto.\n");
 		return;
 	}
 
-	if( !your_turn ){
+	if( !is_my_turn() ){
 		printf("Non è il tuo turno.\n");
 		return;
 	}
@@ -502,7 +594,7 @@ void shot_cmd( char* str )
 		printf("colpo gia' sparato.\n");
 
 	if( ret >= 0 )
-		your_turn = 0;
+		set_my_turn(0);
 }
 
 void arrange_my_ship(char* str)
@@ -519,14 +611,15 @@ void arrange_my_ship(char* str)
 	if( res < 0 )
 		printf("Errore inserimento coordinate\n");
 	else if ( res == 1 ) {
-		arranging_ships = 0;
-		if( opposite_ready ){
+		set_arranging_ships(0);
+		set_playing_game(1);
+		if( is_opposite_ready() ){
 			printf("Gioco iniziato. Spara!\n");
-			your_turn = 1;
+			set_my_turn(1);
 		} else {
-			your_turn = 0;
-		      printf("Navi posizionate con successo. Aspetta l'avversario.\n");
-            }
+			set_my_turn(0);
+			printf("Navi posizionate con successo. Aspetta l'avversario.\n");
+            	}
 	}
 	show_grinds(&my_grind,NULL);
 }
@@ -540,15 +633,14 @@ void disconnect( int show_msg )
 	convert_to_network_order(&m);
 	send_data(sock_serv_TCP, (char*)&m, sizeof(m));
 
-	opposite_ready = 0;
 	opposite_name[0] = '\0';
-	arranging_ships = 0;
+	/*azzero i bit riguardanti lo stato della partita*/
+	state &= 0x0F; 
 
-	if( mode == '#' ){
-            if( show_msg )
-		      printf("Disconnessione avvenuta con successo.\n");
-		mode = '>';
+    	if( show_msg ){
+		printf("Disconnessione avvenuta con successo.\n");
 	}
+	mode = '>';
 }
 
 void quit( int sig )

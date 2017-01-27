@@ -9,7 +9,7 @@ battle_client: battle_client.o game.o net_wrapper.o messages.o
 battle_server: battle_server.o net_wrapper.o peer_manager.o messages.o
 	$(CC) $(CFLAGS) -o $@ battle_server.o net_wrapper.o peer_manager.o messages.o
 
-battle_client.o: battle_client.c
+battle_client.o: battle_client.c battle_client.h
 	$(CC) $(CFLAGS) -o $@ -c battle_client.c
 
 battle_server.o: battle_server.c 
