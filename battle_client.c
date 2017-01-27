@@ -4,19 +4,6 @@
 #include "battle_client.h"
 #include <signal.h>
 
-void quit(int sig);
-void help();
-void register_to_serv( int sd );
-void execute_cmd( char* str );
-void remote_req( int sockt, char* buf );
-void arrange_my_ship();
-void disconnect(int show_msg);
-void switch_mode();
-void print_list_of_peers( char* buf );
-void shot_cmd( char* str );
-void connect_cmd( char* str );
-void who_cmd();
-
 void stampa_indirizzo( struct sockaddr_in *addr )
 {
 	char str[16];
@@ -186,7 +173,7 @@ int main( int argc, char* argv[] )
 	/*assegno handler al segnale generato da CTRL+C*/
 	signal(SIGINT,quit);
 
-      	/*apro socket udp per la comunicazione p2p*/
+  	/*apro socket udp per la comunicazione p2p*/
 	socket_udp = socket(AF_INET,SOCK_DGRAM,0);
 	if( socket_udp == -1 ) {
 		printf("Errore socket udp non aperta.\n");
@@ -215,7 +202,7 @@ int main( int argc, char* argv[] )
 		fflush(stdin);
 		read_fds = master;
 
-            /*se siamo nella modalita game uso il timeout*/
+        /*se siamo nella modalita game uso il timeout*/
 		if( mode == '#')
 			select( max+1, &read_fds, NULL, NULL, &timeout);
 		else
@@ -223,9 +210,9 @@ int main( int argc, char* argv[] )
 
 		if( FD_ISSET(sd, &read_fds) )
 		{
-                  /*il messaggio è stato mandato dal server*/
+			/*il messaggio è stato mandato dal server*/
             
-                  printf("\b"); /*cancella ">" */
+          	printf("\b"); /*cancella ">" */
 			ret = recv_data(sd, &my_buf);
 			if( ret == -1 )	{
 				printf("Il server ha chiuso la connessione\n");
@@ -305,9 +292,9 @@ void register_to_serv( int sd )
 	{
 		printf(">Inserisci il tuo nome: ");
 		scanf("%s", buf);
-		if( strlen(buf) > 63 ){
+		if( strlen(buf) > NAME_LEN-1 ){
 			printf("Il tuo nome e' troppo lungo e verra' troncato");
-			buf[63] = '\0';
+			buf[NAME_LEN-1] = '\0';
 		}
 		strcpy(my_name,buf);
 		strcpy(r_name.name,buf);
@@ -476,7 +463,7 @@ void remote_req( int sockt, char* buf )
 	} else if ( m_type == PEER_DOES_NOT_EXIST ) {
 		printf("Il peer indicato non esiste\n");
 	} else if ( m_type == RES_LIST_OF_PEERS ) {
-		print_list_of_peers(my_buf.buf);
+		print_list_of_peers(buf);
 	} else if ( m_type == SHOT_SHIP ) {
 		coordinate co;
 		co.x = ((shot_mess*)buf)->col;
@@ -523,6 +510,8 @@ void remote_req( int sockt, char* buf )
 	} else if( m_type == SERVER_QUIT ) {
 		printf("Il server è stato chiuso\n");
 		quit(0);
+	} else if ( m_type == GENERIC_ERR) {
+		printf("Errore nel server.\n");
 	} else {
 		printf("Messaggio non riconosciuto %s\n",buf);
 	}
@@ -537,8 +526,28 @@ void switch_mode(){
 
 void print_list_of_peers( char* buf )
 {
+	int i;
+	//char name[NAME_LEN+1];
+
 	res_list_peers *re = (res_list_peers*)buf;
-	printf("\bPeer connessi al server:\n%s",re->list);
+
+	#ifdef DEBUG
+	printf("I peer connessi sono %d\n",re->n_peer);
+	#endif
+
+	printf("\bPeer connessi al server:\n");
+
+	for(i=0; i<re->n_peer; i++)
+	{
+		printf("  %s", re->peer_info[i].name);
+		fflush(stdout);
+
+		if( re->peer_info[i].state == 0x01 )
+			printf("(occupato)");
+		else
+			printf("(libero)");
+		printf("\n");
+	}
 }
 
 void who_cmd()

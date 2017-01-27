@@ -173,40 +173,45 @@ int get_n_peers()
 	return n_peers_;
 }
 
-int get_peers_name( char** list )
+int get_peers_registred( char** list_name, uint8_t** state )
 {
 	int i, ins;
-	char s_libero[] = {"(libero)\n"};
-	char s_occupato[] = {"(occupato)\n"};
+	/*char s_libero[] = {"(libero)"};
+	char s_occupato[] = {"(occupato)"};*/
 
-	//int n_pre = strlen(pre);
-	int n_state = strlen(s_occupato);
+	int dim_elem = NAME_LEN;
 
-	if( *list != NULL )
+	if( *list_name != NULL || *state != NULL )
 		return -1;
 
 	/*Ogni stringa occupa: NAME_LEN byte (NAME_LEN-1) per il nome + stato + '\n'.
 	 *In totale = len_pre + spazio_singolo * n_peers + '\0'; */
-	*list = (char*)malloc(NAME_LEN + n_state*n_peers_ + 1 );
-//	strcpy(*list, pre) ;
+	//*list = (char*)malloc( (NAME_LEN+l_state)*n_peers_ + 1 );
+	*list_name = (char*)malloc(dim_elem*n_peers_);
+	memset(*list_name, 0, dim_elem*n_peers_);
+	*state = (uint8_t*)malloc(n_peers_);
 
 	for( i=0, ins=0; ins<n_peers_; i++ ) {
 		/*Dato che l'array puo' contenere buchi
 		 *controllo che l'elemento sia valido.
 		 *Inserisco solo i peer che sono registrati. */
 		if( peers_[i] != NULL ) {
+			memcpy(*list_name+ins*dim_elem, peers_[i]->name, NAME_LEN);
 			if( peers_[i]->state == PEER_FREE ){
-				strcat(*list,peers_[i]->name);
-				strcat(*list,s_libero);
+				//strcat(*list,peers_[i]->name);
+				//strcat(*list,s_libero);
+				*(*state+ins) = 0x00;
 			} else if( peers_[i]->state == PEER_PLAYING ) {
-				strcat(*list,peers_[i]->name);
-				strcat(*list,s_occupato);
+				/*strcat(*list,peers_[i]->name);
+				strcat(*list,s_occupato);*/
+				*(*state+ins) = 0x01;
 			}
 			ins++;
 		}
 	}
 
-	return strlen(*list)+1;
+	//return strlen(*list)+1;
+	return ins;
 }
 
 int is_valid_id( int id )

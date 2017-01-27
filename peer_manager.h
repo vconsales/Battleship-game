@@ -34,10 +34,18 @@ int get_n_peers();
 /*se l'id corrisponde ad un peer registrato ritorna 1 altrimenti 0*/
 int is_valid_id( int id );
 
-/*Fornire come primo parametro una array di puntatori 
-* a carattere di dimensione n_peers.
+/*
+* Fornire come primo parametro l'indirizzo di un puntatore
+* a caratteri (NULL) e come secondo parametro l'indirizzo
+* di un puntatore a uint8_t.
+* La funzione alloca lo spazio necessario ed inserisce in
+* in list_name solo i nomi dei peer registrati. Nel vettore
+* state inserisce lo stato del peer, ovvero:
+* 0->libero
+* 1->occupato
+* La restituisce il numero di peer trovati.
 */
-int get_peers_name( char** list );
+int get_peers_registred( char** list_name, uint8_t** state );
 int more_peers();// aumenta il numero di peer massimi
 
 #endif

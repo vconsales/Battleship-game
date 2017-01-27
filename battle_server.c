@@ -182,10 +182,10 @@ int analyze_message( int sockt, char* buf )
 		      printf("Richiesta lista di peer\n");
 		      #endif
 		      send_list_of_peer(p->conn.socket); 
-                  break;
+              break;
 	      case REQ_CONN_TO_PEER:
 		      if( p->state != PEER_FREE )
-			      return -1;
+				return -1;
 
 		      printf("%s richiede connessione a %s\n",p->name,((req_conn_peer*)buf)->peer_name);
 		      connect_request(index,((req_conn_peer*)buf)->peer_name);
@@ -239,29 +239,62 @@ int send_welcome( int sockt, int id )
 
 int send_list_of_peer( int sockt )
 {
-	char* list = NULL;
-	char* message_res = NULL;
-	size_t dim_mess;
+	/*conterrà la lista di utenti connessi*/
+	char* list_name = NULL;
+	uint8_t* list_state = NULL;
+	/*messaggio di risposta da inviare al client*/
+	res_list_peers* message_res = NULL;
+
+	uint32_t dim_mess;
 
 	/*devo preparare il messaggio di risposta
 	  del tipo res_list_peers */
 
-	int n = get_peers_name(&list);
-	if( n < 0)
-		return -1;
-//	printf("dentro list ci sono %d bytes\n",n);
-	dim_mess = sizeof(message_type)+4+n;
+	int np = get_peers_registred(&list_name, &list_state);
+	#ifdef DEBUG
+	printf("ci sono %d peer registrati\n",n);
+	#endif
 
-	message_res = (char*)malloc(dim_mess); 
-	((res_list_peers*)message_res)->t = RES_LIST_OF_PEERS;
-	((res_list_peers*)message_res)->size = n;
-	memcpy(&((res_list_peers*)message_res)->list,list,n);
-	
+	if( np <= 0) {
+		dim_mess = sizeof(message_type)+4;
+		message_res = (res_list_peers*)malloc(dim_mess);
+		message_res->t = GENERIC_ERR;
+		message_res->n_peer = 0;
+		send_data(sockt, (char*)message_res, dim_mess);
+		return -1;
+	}
+
+	/* il messaggio deve contenere:
+	   message_type (4B)
+	   n_peer (4B)
+	   name (65B) per ogni peer trovato
+	   state (1B) per ogni peer trovato
+	*/
+	dim_mess = sizeof(message_type) + 4 + (NAME_LEN+2)*np;
+	#ifdef DEBUG	
+	printf("La dim del msg è %d\n",dim_mess);
+	#endif
+
+	message_res = (res_list_peers*)malloc(dim_mess); 
+	memset(message_res, 0, dim_mess);
+	message_res->t = RES_LIST_OF_PEERS;
+	message_res->n_peer = np;
+
+	/*copio tutti i nomi(validi) nel messaggio di risp*/
+	for( int i=0; i<np; i++){
+		memcpy(&message_res->peer_info[i].name,list_name+i*NAME_LEN,NAME_LEN);
+		message_res->peer_info[i].name[NAME_LEN] = '\0';
+		message_res->peer_info[i].state = list_state[i];
+	}
+
 	convert_to_network_order(message_res);
-	send_data(sockt, message_res, dim_mess);
+	send_data(sockt, (char*)message_res, dim_mess);
 	
 	free(message_res);
-	return n;
+	free(list_name);
+	free(list_state);
+
+	return np;
 }
 
 int connect_request(int sender_id, char* opponent_name )

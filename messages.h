@@ -1,9 +1,12 @@
 #ifndef MESSAGES_H
 #define MESSAGES_H
 #include <arpa/inet.h>
+//#define DEBUG
+#define NAME_LEN 64
 
 typedef enum 
 { 
+	GENERIC_ERR,
 	WELCOME_MESS, 
 	PEER_SETS_NAME,
 	PEER_SETS_UDP_PORT,
@@ -26,7 +29,7 @@ typedef enum
 	YOU_WON,
 	DISCONNECT_GAME,
 	OPPONENT_DISCONNECTED,
-	SERVER_QUIT
+	SERVER_QUIT,
 } message_type;
 
 /*
@@ -47,7 +50,7 @@ typedef enum
 typedef struct simple_mess_t
 {
 	message_type t;
-	int peer_id;
+	int32_t peer_id;
 }__attribute__((packed)) simple_mess;
 
 typedef struct reg_set_name_t
@@ -91,7 +94,7 @@ typedef struct reg_set_udp_port_t
 typedef struct req_conn_peer_t
 {
 	message_type t;
-	int peer_id;
+	int32_t peer_id;
 	char peer_name[65];
 	struct sockaddr_in peer_addr; 
 }__attribute__((packed)) req_conn_peer;
@@ -111,8 +114,8 @@ typedef struct req_conn_peer_t
 typedef struct response_conn_to_peer_t
 {
 	message_type t;
-	int peer_id;
-	int opponent_id;
+	int32_t peer_id;
+	int32_t opponent_id;
 }__attribute__((packed)) response_conn_to_peer;
 
 /*******************************************
@@ -134,15 +137,19 @@ typedef struct shot_mess_t
 * messaggio inviato dal server in risposta
 * al comando !who inviato da un client.
 * t: RES_LIST_OF_PEERS
-* size: quanti bytes contiene list
-* list: vettore di carattere che contiene
-* la lista dei peers connessi.
+* n_peer: quanti elementi contiene names
+* names: vettore dei nomi dei peer connessi
+* state: 0->libero, 1->occupato
 ********************************************/
 typedef struct res_list_peers_t
 {
 	message_type t;
-	uint32_t size;
-	char list[];
+	uint32_t n_peer;
+	struct peer_info_t {
+		uint8_t state;
+		char name[NAME_LEN+1];
+	} peer_info[];
+	
 }__attribute__((packed)) res_list_peers;
 
 

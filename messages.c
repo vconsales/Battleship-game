@@ -45,7 +45,7 @@ void convert_to_network_order( void* msg )
 	
 		case RES_LIST_OF_PEERS:
 			((res_list_peers*)msg)->t = htonl(((res_list_peers*)msg)->t);
-			((res_list_peers*)msg)->size = htonl(((res_list_peers*)msg)->size);
+			((res_list_peers*)msg)->n_peer = htonl(((res_list_peers*)msg)->n_peer);
 			break;
 
 		default:
@@ -83,7 +83,7 @@ void convert_to_host_order( void* msg )
 			break;
 	
 		case RES_LIST_OF_PEERS:
-			((res_list_peers*)msg)->size = ntohl(((res_list_peers*)msg)->size);
+			((res_list_peers*)msg)->n_peer = ntohl(((res_list_peers*)msg)->n_peer);
 			break;
 			
 		default:

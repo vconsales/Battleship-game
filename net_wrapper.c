@@ -106,6 +106,7 @@ int recv_data( int sockt, my_buffer* my_buff )
 		if( my_buff->buf != NULL )
 			free(my_buff->buf);
 		my_buff->buf = (char*)malloc(nbytes);	
+		my_buff->size = nbytes;
 	}
 	clear_my_buffer(my_buff);
 
