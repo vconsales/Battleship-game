@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS= -Wall
+CFLAGS=-Wall
 
 all: battle_server battle_client
 

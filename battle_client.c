@@ -176,10 +176,10 @@ int main( int argc, char* argv[] )
 		return -1;
 	}
 
-      	/*Registrazione al server*/
+	/*Registrazione al server*/
 	register_to_serv(sd);
 
-      	/*Mostro i comandi disponibili*/
+	/*Mostro i comandi disponibili*/
 	help();
 
 	/*Inizializzo il gioco*/
@@ -198,7 +198,7 @@ int main( int argc, char* argv[] )
 		fflush(stdin);
 		read_fds = master;
 
-        /*se siamo nella modalita game uso il timeout*/
+            /*se siamo nella modalita game uso il timeout*/
 		if( mode == '#')
 			select( max+1, &read_fds, NULL, NULL, &timeout);
 		else
@@ -388,7 +388,7 @@ void remote_req( int sockt, char* buf )
 	
 	if( m_type == REQ_CONN_FROM_PEER ){
 		/*se il server invia erronamente un messaggio
-		 *di connessione accettata mentre si e' in partita.*/
+		 *di connessione accettata mentre si e' in partita...*/
 		if( mode == '#') return;
 		
 		printf(">Accetti connessione con %s? [S/N]: ", ((req_conn_peer*)buf)->peer_name);
@@ -421,9 +421,9 @@ void remote_req( int sockt, char* buf )
 			printf("-Posiziona le tue navi\n");
 		}	
 	} else if ( m_type == CONN_TO_PEER_ACCEPTED ) { 
-		/*il server invia erroneamente un messaggio
+		/*se il server invia erroneamente un messaggio
 		 *di connessione accettata mentre si e' in
-		 *partita.*/
+		 *partita...*/
 		if( mode == '#') return;
 
 		/*Copio i dati dell'avversario presenti nel messaggio
@@ -449,7 +449,7 @@ void remote_req( int sockt, char* buf )
 		printf("------------------------------------\n");
 		printf("-Posiziona le tue navi\n");
 	} else if ( m_type == CONN_TO_PEER_REFUSED ) { 
-		/*il server invia erronamente un messaggio
+		/*se il server invia erronamente un messaggio
 		 *di connessione accettata mentre si e' in
 		 *partita.*/
 		if( mode == '#') return;

@@ -203,16 +203,25 @@ int analyze_message( int sockt, char* buf )
 		      int opponent_id = ((response_conn_to_peer*)buf)->opponent_id;
 		      /*mando il messaggio all'avversario*/
 		      p = get_peer(opponent_id);
+                  if( p == NULL )
+                  {
+                        /*il peer che ha richiesto la connessione si è disconnesso*/
+                        m = OPPONENT_DISCONNECTED;
+                        convert_to_network_order(&m);
+                        p = get_peer(re.peer_id);
+                        send_data(p->conn.socket,(char*)&m,sizeof(m));
+                  }
+                  else{  
+		            convert_to_network_order(&re); 
+		            send_data(p->conn.socket,(char*)&re,sizeof(re));
 
-		      convert_to_network_order(&re); 
-		      send_data(p->conn.socket,(char*)&re,sizeof(re));
+		            p->state = PEER_PLAYING;
+		            p->opponent_id = index;
 
-		      p->state = PEER_PLAYING;
-		      p->opponent_id = index;
-
-		      p = get_peer(index);
-		      p->state = PEER_PLAYING;
-		      p->opponent_id = opponent_id;
+		            p = get_peer(index);
+		            p->state = PEER_PLAYING;
+		            p->opponent_id = opponent_id;
+                  }
                   break;
 	      case REFUSE_CONN_FROM_PEER:
 		      m = CONN_TO_PEER_REFUSED;
